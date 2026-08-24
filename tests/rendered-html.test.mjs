@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
-
-test("renders development preview metadata", async () => {
+test("renders production social preview metadata", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
@@ -29,5 +26,13 @@ test("renders development preview metadata", async () => {
     response.headers.get("content-type") ?? "",
     /^text\/html\b/i,
   );
-  assert.match(await response.text(), developmentPreviewMeta);
+  const html = await response.text();
+
+  assert.match(html, /<link[^>]+rel=["']canonical["'][^>]+href=["']https:\/\/support\.orderofkpi\.com\/?["']/i);
+  assert.match(html, /<meta[^>]+property=["']og:type["'][^>]+content=["']website["']/i);
+  assert.match(html, /<meta[^>]+property=["']og:url["'][^>]+content=["']https:\/\/support\.orderofkpi\.com["']/i);
+  assert.match(html, /<meta[^>]+property=["']og:image["'][^>]+content=["']https:\/\/support\.orderofkpi\.com\/og\.jpg\?v=20260824["']/i);
+  assert.match(html, /<meta[^>]+property=["']og:image:width["'][^>]+content=["']1200["']/i);
+  assert.match(html, /<meta[^>]+property=["']og:image:height["'][^>]+content=["']630["']/i);
+  assert.match(html, /<meta[^>]+name=["']twitter:card["'][^>]+content=["']summary_large_image["']/i);
 });
