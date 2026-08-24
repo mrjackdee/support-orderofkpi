@@ -1,0 +1,129 @@
+const SHEET_NAME = "D&T Master Requests";
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents || "{}");
+    const sheet = getRequestSheet_();
+
+    sheet.appendRow([
+      data.ticketId || "",
+      data.timestamp || new Date().toISOString(),
+      data.categoryCode || "",
+      data.category || "",
+      data.memberName || "",
+      data.memberEmail || "",
+      data.subject || "",
+      data.description || "",
+      data.priority || "Normal",
+      data.status || "RECEIVED",
+      data.leadContact || "KP Digital & Technology Committee",
+      data.committeeNotes || "Request received and waiting for review.",
+      "SYNCED",
+      "PENDING",
+      new Date().toISOString()
+    ]);
+
+    let emailStatus = "SENT";
+    let emailError = "";
+    try {
+      sendMemberReceipt_(data);
+      sheet.getRange(sheet.getLastRow(), 14).setValue("SENT");
+    } catch (error) {
+      emailStatus = "FAILED";
+      emailError = String(error && error.message ? error.message : error);
+      sheet.getRange(sheet.getLastRow(), 14).setValue("FAILED");
+    }
+
+    return json_({
+      status: "success",
+      ticketId: data.ticketId,
+      sheet: "SYNCED",
+      email: emailStatus,
+      error: emailError || null
+    });
+  } catch (error) {
+    return json_({
+      status: "error",
+      sheet: "FAILED",
+      email: "FAILED",
+      error: String(error && error.message ? error.message : error)
+    });
+  }
+}
+
+function getRequestSheet_() {
+  const workbook = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = workbook.getSheetByName(SHEET_NAME);
+  if (!sheet) sheet = workbook.insertSheet(SHEET_NAME);
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow([
+      "Request Number",
+      "Timestamp",
+      "Category Code",
+      "Category",
+      "Member Name",
+      "Member Email",
+      "Subject",
+      "Description",
+      "Priority",
+      "Status",
+      "Lead Contact",
+      "Committee Notes",
+      "Sheet Sync",
+      "Email Receipt",
+      "Last Updated"
+    ]);
+    const header = sheet.getRange(1, 1, 1, 15);
+    header.setBackground("#173F20");
+    header.setFontColor("#FDFBF7");
+    header.setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function sendMemberReceipt_(data) {
+  if (!data.memberEmail) throw new Error("Member email is missing.");
+
+  const subject = "[Order of KP Support] We Received Your Request - " + data.ticketId;
+  const html = `
+    <div style="font-family:Arial,sans-serif;background:#FBF9EF;padding:32px;color:#173F20">
+      <div style="max-width:620px;margin:0 auto;background:#FFFFFF;border:1px solid #EADCAE;padding:32px">
+        <p style="margin:0 0 8px;color:#AD7800;font-size:11px;letter-spacing:2px;font-weight:bold">ORDER OF KP MEMBER SUPPORT</p>
+        <h1 style="margin:0 0 18px;font-size:28px;color:#173F20">We received your request.</h1>
+        <p style="line-height:1.6;color:#52675A">Hello ${escapeHtml_(data.memberName || "Member")},</p>
+        <p style="line-height:1.6;color:#52675A">The KP Digital & Technology Committee received your request and will follow up within 24 to 48 hours.</p>
+        <div style="margin:24px 0;padding:18px;background:#FBF9EF;border-left:4px solid #C58B00">
+          <p style="margin:0 0 6px;font-size:11px;color:#7F9587">REQUEST NUMBER</p>
+          <p style="margin:0;font-size:22px;font-weight:bold;color:#173F20">${escapeHtml_(data.ticketId || "")}</p>
+        </div>
+        <p style="margin:0 0 6px;font-weight:bold">${escapeHtml_(data.subject || "Support request")}</p>
+        <p style="margin:0 0 24px;color:#52675A;line-height:1.6">${escapeHtml_(data.description || "")}</p>
+        <a href="${escapeHtml_(data.statusLink || "")}" style="display:inline-block;background:#173F20;color:#FFFFFF;text-decoration:none;padding:13px 20px;font-size:12px;font-weight:bold">CHECK REQUEST STATUS</a>
+      </div>
+    </div>`;
+
+  MailApp.sendEmail({
+    to: data.memberEmail,
+    subject: subject,
+    htmlBody: html,
+    name: "Order of KP Member Support",
+    noReply: true
+  });
+}
+
+function escapeHtml_(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function json_(value) {
+  return ContentService
+    .createTextOutput(JSON.stringify(value))
+    .setMimeType(ContentService.MimeType.JSON);
+}

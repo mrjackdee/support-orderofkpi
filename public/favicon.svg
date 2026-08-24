@@ -1,0 +1,7 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="5" fill="#FBF9EF"/>
+  <rect x="1" y="1" width="30" height="30" rx="4" fill="none" stroke="#C58B00"/>
+  <path d="M7 9h18v14H7z" fill="#173F20"/>
+  <path d="M16 9h9v14h-9z" fill="#C58B00"/>
+  <text x="16" y="19.5" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="700" fill="#FBF9EF">SC</text>
+</svg>
