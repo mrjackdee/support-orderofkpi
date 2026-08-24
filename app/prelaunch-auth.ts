@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env } from "runtime-env";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 

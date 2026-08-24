@@ -24,6 +24,7 @@ Recommended deployment settings:
 - Install command: `npm ci`
 - Build command: `npm run build`
 - Start command: `npm start`
+- Output directory: `.next`
 - Application port: `3000`
 
 ## Required environment variables

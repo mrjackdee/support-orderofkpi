@@ -1,5 +1,5 @@
 import { desc, eq } from "drizzle-orm";
-import { env } from "cloudflare:workers";
+import { env } from "runtime-env";
 import { prelaunchAdminFromRequest } from "@/app/prelaunch-auth";
 import { getDb } from "@/db";
 import { requestActivity, requests } from "@/db/schema";
