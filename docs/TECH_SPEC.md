@@ -258,6 +258,10 @@ prelaunch code is retired after launch, with Jack's ruling (no deletion without 
   per Q10.
 - A daily 8:00 AM Eastern digest goes to each committee chair, listing requests with no owner or
   past target.
+- Business days are Monday to Friday in US Eastern, less the 11 US federal holidays on their
+  observed dates (Saturday to the Friday before, Sunday to the Monday after), computed for any
+  year (`lib/server/holidays.ts`). The response clock, the past-target count and the digest use
+  them.
 
 ## 6. Security
 

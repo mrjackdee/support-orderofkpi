@@ -3,8 +3,9 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
-import { addBusinessDays, businessMsBetween, easternYear } from "../lib/server/business-time";
+import { addBusinessDays, businessDaysBetween, businessMsBetween, easternYear, isBusinessDay } from "../lib/server/business-time";
 import { csvCell } from "../lib/server/csv";
+import { federalHolidays } from "../lib/server/holidays";
 import { safeFileName, sniffFile, zipEntryNames } from "../lib/server/file-check";
 import { formatRequestNumber, normalizeRequestNumber } from "../lib/server/numbering";
 import { can, canBeAssigned, canGlobal, isSupportLead, staffRoutes, type Actor, type RequestAccessFacts } from "../lib/server/permissions";
@@ -246,4 +247,42 @@ test("CSV cells cannot start a formula", () => {
   assert.equal(csvCell("=HYPERLINK(1)"), "'=HYPERLINK(1)");
   assert.equal(csvCell('He said "hi", then left'), '"He said ""hi"", then left"');
   assert.equal(csvCell("plain"), "plain");
+});
+
+// --- federal holidays ------------------------------------------------------------------------
+
+test("2026 federal holidays on their observed dates", () => {
+  assert.deepEqual(
+    federalHolidays(2026).map((holiday) => holiday.date),
+    ["2026-01-01", "2026-01-19", "2026-02-16", "2026-05-25", "2026-06-19", "2026-07-03", "2026-09-07", "2026-10-12", "2026-11-11", "2026-11-26", "2026-12-25"],
+  );
+  // July 4, 2026 is a Saturday: observed Friday July 3.
+  assert.equal(federalHolidays(2026).find((holiday) => holiday.name === "Independence Day")?.date, "2026-07-03");
+});
+
+test("2027 federal holidays, including New Year's Day 2028 observed on Friday December 31", () => {
+  assert.deepEqual(
+    federalHolidays(2027).map((holiday) => holiday.date),
+    ["2027-01-01", "2027-01-18", "2027-02-15", "2027-05-31", "2027-06-18", "2027-07-05", "2027-09-06", "2027-10-11", "2027-11-11", "2027-11-25", "2027-12-24", "2027-12-31"],
+  );
+  // Juneteenth on a Saturday moves to Friday; July 4 on a Sunday moves to Monday.
+  assert.equal(federalHolidays(2027).find((holiday) => holiday.name.startsWith("Juneteenth"))?.date, "2027-06-18");
+  assert.equal(federalHolidays(2027).find((holiday) => holiday.name === "Independence Day")?.date, "2027-07-05");
+  // ...and 2028 does not list January 1 twice.
+  assert.equal(federalHolidays(2028).filter((holiday) => holiday.name === "New Year's Day").length, 0);
+  assert.equal(federalHolidays(2028).length, 10);
+});
+
+test("business days skip federal holidays", () => {
+  assert.equal(isBusinessDay(Date.UTC(2026, 10, 11, 15, 0)), false); // Veterans Day, Wed 11/11/2026
+  assert.equal(isBusinessDay(Date.UTC(2026, 10, 26, 15, 0)), false); // Thanksgiving
+  assert.equal(isBusinessDay(Date.UTC(2026, 10, 27, 15, 0)), true); // the Friday after is a business day
+  assert.equal(isBusinessDay(Date.UTC(2026, 6, 3, 15, 0)), false); // July 4 observed
+  // Tue 11/10/2026 9:00 AM EST + 1 business day skips Veterans Day: Thursday 9:00 AM.
+  const tuesday9am = Date.UTC(2026, 10, 10, 14, 0);
+  assert.equal(addBusinessDays(tuesday9am, 1), Date.UTC(2026, 10, 12, 14, 0));
+  // Wed 11/25 9:00 AM + 2 business days: past Thanksgiving and the weekend to Monday 11/30.
+  assert.equal(addBusinessDays(Date.UTC(2026, 10, 25, 14, 0), 2), Date.UTC(2026, 10, 30, 14, 0));
+  // Thu 12/24 to Mon 12/28 is one business day (Christmas Friday, then the weekend).
+  assert.equal(businessDaysBetween(Date.UTC(2026, 11, 24, 14, 0), Date.UTC(2026, 11, 28, 14, 0)), 1);
 });

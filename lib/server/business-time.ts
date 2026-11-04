@@ -1,4 +1,8 @@
-// Business time in US Eastern (Q10): Monday to Friday, all day. Public holidays are not excluded.
+// Business time in US Eastern (Q10): Monday to Friday, all day, except US federal holidays on
+// the date they are observed (./holidays). Used by the response clock, the past-target counts and
+// the daily digest.
+
+import { isFederalHoliday } from "./holidays";
 
 const ZONE = "America/New_York";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -49,8 +53,20 @@ export function nextEasternMidnight(ms: number) {
 }
 
 export function isBusinessDay(ms: number) {
-  const weekday = easternParts(ms).weekday;
-  return weekday >= 1 && weekday <= 5;
+  const p = easternParts(ms);
+  return p.weekday >= 1 && p.weekday <= 5 && !isFederalHoliday(p.year, p.month, p.day);
+}
+
+/** The US Eastern calendar date, "YYYY-MM-DD". */
+export function easternDateKey(ms: number) {
+  const p = easternParts(ms);
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
+/** Minutes since Eastern midnight (0 to 1439). */
+export function easternMinuteOfDay(ms: number) {
+  const p = easternParts(ms);
+  return p.hour * 60 + p.minute;
 }
 
 /** Business milliseconds between two instants. */
