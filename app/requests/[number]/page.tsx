@@ -129,9 +129,9 @@ export default async function RequestPage({ params }: { params: Promise<{ number
                   {staff.pastTarget && <span className="past-target">Past the response target</span>}
                   {staff.chosenCommittee && <span>Member chose: {ALL_ROUTES.find((route) => route.code === staff.chosenCommittee)?.name}</span>}
                 </div>
-                {staff.canSetStatus && <StatusControl key={request.status} number={request.number} csrf={session.csrf} status={request.status} />}
-                <AssignControl key={`a-${staff.assigneeEmail ?? ""}`} number={request.number} csrf={session.csrf} staff={staff} />
-                {staff.canReroute && <RerouteControl key={`r-${staff.routedCommittee}`} number={request.number} csrf={session.csrf} current={staff.routedCommittee} routes={ALL_ROUTES} />}
+                {staff.canSetStatus && <StatusControl number={request.number} csrf={session.csrf} status={request.status} />}
+                <AssignControl number={request.number} csrf={session.csrf} staff={staff} />
+                {staff.canReroute && <RerouteControl number={request.number} csrf={session.csrf} current={staff.routedCommittee} routes={ALL_ROUTES} />}
                 {staff.canStaffReply && !closed && (
                   <MessageForm number={request.number} csrf={session.csrf} kind="staff" id="staff-reply" label="Reply to the member" placeholder="The member sees this and is emailed." buttonLabel="Send reply to member" allowFiles filesLeft={roomForFiles} done="Reply sent. The member has been emailed." />
                 )}

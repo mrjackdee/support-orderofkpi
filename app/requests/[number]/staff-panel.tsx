@@ -8,6 +8,20 @@ import type { StaffExtras } from "@/lib/shared/views";
 
 type Route = { code: string; name: string };
 
+/**
+ * Keeps a control's choice in step with the saved value after the page refreshes, without
+ * remounting the control (a remount would wipe the "Saved" confirmation the person just got).
+ */
+function useSynced<T>(saved: T): [T, (value: T) => void] {
+  const [value, setValue] = useState(saved);
+  const [seen, setSeen] = useState(saved);
+  if (seen !== saved) {
+    setSeen(saved);
+    setValue(saved);
+  }
+  return [value, setValue];
+}
+
 function useAction(number: string, csrf: string) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -31,7 +45,7 @@ function useAction(number: string, csrf: string) {
 }
 
 export function StatusControl({ number, csrf, status }: { number: string; csrf: string; status: string }) {
-  const [next, setNext] = useState(status === "WITHDRAWN" ? "RECEIVED" : status);
+  const [next, setNext] = useSynced(status === "WITHDRAWN" ? "RECEIVED" : status);
   const [resolution, setResolution] = useState("");
   const action = useAction(number, csrf);
 
@@ -63,7 +77,7 @@ export function StatusControl({ number, csrf, status }: { number: string; csrf: 
 }
 
 export function AssignControl({ number, csrf, staff }: { number: string; csrf: string; staff: StaffExtras }) {
-  const [assignee, setAssignee] = useState(staff.assigneeEmail ?? "");
+  const [assignee, setAssignee] = useSynced(staff.assigneeEmail ?? "");
   const action = useAction(number, csrf);
   const options = staff.assignable;
   return (
@@ -89,7 +103,7 @@ export function AssignControl({ number, csrf, staff }: { number: string; csrf: s
 }
 
 export function RerouteControl({ number, csrf, current, routes }: { number: string; csrf: string; current: string; routes: Route[] }) {
-  const [route, setRoute] = useState(current);
+  const [route, setRoute] = useSynced(current);
   const action = useAction(number, csrf);
   return (
     <form
