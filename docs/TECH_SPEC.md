@@ -30,7 +30,7 @@ support.orderofkpi.com. Nothing here was checked against the live sites yet. Pha
 | Request numbers | `KP-CAT-YYYY-` plus 4 *random* digits (`route.ts:26`) | Guessable and collision-prone. Make them sequential |
 | Statuses | RECEIVED, REVIEW, WORKING, COMPLETED; the member view maps them by substring | Replace with an explicit enum |
 | Staff | One `leadContact` free-text field and one `committeeNotes` field; no assignment, routing, internal notes or roles | Rebuild the staff side |
-| Integrations | Google Apps Script web app: Sheet row and receipt email, synchronous, no auth, no retry, creation only (`public/google-apps-script-connector.txt`) | Replace email with SMTP; Sheet sync becomes optional and authenticated |
+| Integrations | Google Apps Script web app: Sheet row and receipt email, synchronous, no auth, no retry, creation only (`public/google-apps-script-connector.txt`) | Replace email with SMTP; the Sheet is retired (Q8) and the Apps Script link switched off |
 | Validation | Category, priority, email and file type (browser-reported MIME) only; length limits in the browser only | Server-side limits plus file-content checks |
 | Security | No CSRF token, no rate limits, no revocation | Section 6 |
 | Tests | One rendered-HTML test against the Workers build only | New test suite (section 10) |
@@ -147,7 +147,7 @@ portal to choose a new password.
   address, access restricted, too many attempts), passed through unchanged.
 - "Forgot password?" links to `https://orderofkpi.com/reset-password`.
 
-**Alternative (Q2):** replace the form with "Sign in with your KP Member Portal account". It
+**Alternative, not chosen (Q2 picked the form above):** replace the form with "Sign in with your KP Member Portal account". It
 redirects to orderofkpi.com/login, which then completes the hand-off in 3.1. The support site never
 touches a password, but this needs a `return_to` allow-list on the portal login page. Either option
 uses the same endpoints.
@@ -176,7 +176,7 @@ The schema below is a rewrite of `db/schema.ts`. Every table has `created_at` / 
 | `request_counters` | `(topic_code, year)` PK, `next_value`. Incremented inside the insert transaction, never reused (BR-17) |
 | `messages` | `request_id` FK; `author_person_id`; `author_role` (member/staff); `body`; member-visible |
 | `internal_notes` | `request_id` FK; `author_person_id`; `body`. Staff only, never serialized for members (BR-34) |
-| `files` | `request_id` FK; `message_id` NULL; `storage_key` (random 32 hex); `original_name`; `mime` (sniffed); `bytes`; `sha256`; `uploaded_by` |
+| `files` (JPG, PNG, WebP, PDF, DOCX, XLSX, Q7) | `request_id` FK; `message_id` NULL; `storage_key` (random 32 hex); `original_name`; `mime` (sniffed); `bytes`; `sha256`; `uploaded_by` |
 | `history` | `request_id` FK; `action`; `from` / `to` JSON; `actor_person_id`; append-only (BR-36) |
 | `topics` | `code` PK; `label`; `default_committee`; `enabled`; `sort` (BR-10) |
 | `settings` | Response target hours, support-lead person ids, extra notification addresses |
@@ -243,8 +243,8 @@ prelaunch code is retired after launch, with Jack's ruling (no deletion without 
     `replyTo` set to the support address;
   - HTML and plain text, in a template ported from `renderPortalEmail`;
   - one message per recipient.
-- Sheet sync (if kept, Q8): the Apps Script web app gets an HMAC shared secret check and its email
-  sending is removed. Status changes are also synced.
+- Sheet sync: none. The Sheet is retired at launch (Q8), so `GOOGLE_APPS_SCRIPT_*` variables are
+  not used.
 - **Failure signal.** After the final attempt fails, or if the oldest pending item is more than 30
   minutes old:
   - an alert email goes to `SUPPORT_ALERT_EMAILS`;
@@ -344,7 +344,21 @@ Planned changes:
 The portal's own rules apply to all portal work: QA, QC and regression agents before each push,
 `git sync`, and the AI Studio sync check afterwards.
 
-A schedule follows once Jack answers the questions in the BRD, particularly the deadline (Q13).
+### Schedule to the 12/01/2026 launch (Q13)
+
+| Dates | Work | Depends on |
+| --- | --- | --- |
+| 11/05 to 11/06 | Phase 0: verify the three hosts; create test-support.orderofkpi.com and its MySQL database on Hostinger | Q12 setup ruling (who creates DNS and the site) |
+| 11/06 to 11/12 | Phases 1 and 2: foundation, deploy workflow, alerts; portal sign-in endpoints on portal `main` (test.orderofkpi.com) | - |
+| 11/12 to 11/17 | Phases 3 and 4: member flow, staff workspace, reports | - |
+| 11/17 to 11/18 | Phase 5: security, accessibility and regression checks; feature freeze 11/18 | - |
+| 11/18 to 11/25 | Formal UAT by the D&T team on test-support; fixes as found | D&T testers named and available (Thanksgiving is 11/26) |
+| 11/25 | Go or no-go with Jack | UAT sign-off |
+| 11/30 | Jack promotes the portal endpoints and the support site to `live` | Jack |
+| 12/01 | Requests switched on; portal link live; verified at both public addresses | - |
+
+The portal's sign-in endpoints must be live on orderofkpi.com before 12/01, so the portal promotion
+is on the critical path as well as the support site.
 
 ## 10. Test plan (summary)
 

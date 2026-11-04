@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Draft for review |
+| Status | Decisions recorded 11/04/2026 |
 | Version | 0.1, 11/04/2026 |
 | Requested by | Jack Dee |
 | Prepared by | Cheryl, CTO [Claude] |
@@ -11,6 +11,29 @@
 
 Requirement numbers (BR-n) are cited by the tech spec and will be cited by every build hand-over.
 Items marked **[Decision needed]** are open questions for Jack, collected in section 10.
+
+---
+
+## Decisions (Jack, 11/04/2026)
+
+| # | Decision |
+| --- | --- |
+| Q1 | Financial members only at launch. A member who cannot sign in uses the orderofkpi.com password reset, or emails admin@orderofkpi.org |
+| Q2 | Sign-in form on support.orderofkpi.com, checked against the portal behind the scenes |
+| Q3 | Routing as proposed, each topic falling back to the support lead |
+| Q4 | Support lead: D&T Committee chair plus administrators |
+| Q5 | Add "Waiting on You" and "Withdrawn" |
+| Q6 | 14-day reopen window |
+| Q7 | Add Word and Excel; screen recordings by shared-drive link |
+| Q8 | Retire the Google Sheet; the dashboard and CSV export replace it |
+| Q9 | Follow the own-case rule for headings, small labels and buttons |
+| Q10 | Business hours; Urgent within 1 business day |
+| Q11 | Card stays at the bottom, open by default, plus a Quick Link |
+| Q12 | Test copy at test-support.orderofkpi.com |
+| Q13 | Live for members 12/01/2026, after formal UAT by the D&T team on test-support |
+
+The readable copy of this document, including Jack's answers, is the Claude Docs version:
+https://claude.ai/artifact/41xap5QdUjvWu5EHt6Jryu
 
 ---
 
@@ -88,7 +111,7 @@ the Marketing Team (`MKT-` numbers), whose proven rules this project reuses rath
 | Member | Anyone the portal lets sign in | Send in requests; see and update only their own |
 | Support staff | Members of the KPI committee a request is routed to (the D&T Committee by default) | Work requests routed to their committee |
 | Committee chair | The chair of that KPI committee | Same as support staff, plus assign and reassign within the committee |
-| Support lead | D&T Committee chair, and anyone Jack names **[Decision needed: Q4]** | See and route every request; change settings |
+| Support lead | D&T Committee chair, and anyone Jack names **(Q4: D&T Committee chair plus administrators)** | See and route every request; change settings |
 | Administrator | Portal administrators | Everything, including reports and the audit history |
 
 Who holds each role comes **from the portal**: its committee rosters and its role table. The Support
@@ -106,8 +129,8 @@ Center keeps no second list of people, because two lists drift apart.
   - Whoever the portal would refuse is refused here, with the same plain message.
   - If someone loses portal access (dues lapse, account closed, password changed), they lose
     Support Center access within 15 minutes.
-- **BR-4** People who cannot sign in, including lapsed members, are offered a contact route for
-  account and dues problems. **[Decision needed: Q1]**
+- **BR-4** At launch the Support Center is for financial members only. A member who cannot sign in
+  uses the orderofkpi.com password reset, or emails admin@orderofkpi.org. The sign-in page says so. (Q1)
 - **BR-5** "Forgot password?" on the Support Center sign-in page uses the portal's existing
   password reset. The Support Center never stores, sees in logs, or resets passwords.
 - **BR-6** Signing out of the Support Center ends the Support Center session on the server.
@@ -133,8 +156,9 @@ Center keeps no second list of people, because two lists drift apart.
   - optional attachments.
 
   The server enforces the same limits as the page.
-- **BR-13** Attachments: JPG, PNG, WebP or PDF, up to 10 MB each and 5 per request. The file's
-  contents are checked, not just its name. **[Decision needed: Q7 for other types]**
+- **BR-13** Attachments: JPG, PNG, WebP, PDF, Word or Excel, up to 10 MB each and 5 per request.
+  Screen recordings come in as a shared-drive link. The file's contents are checked, not just its
+  name. (Q7)
 - **BR-14** Before submitting, the member sees any matching quick help (the proof of concept's
   tips, later the portal FAQ). Choosing "This solved my question" ends the flow without creating a
   request, and that choice is counted.
@@ -159,7 +183,7 @@ Center keeps no second list of people, because two lists drift apart.
 - **BR-23** The member can add details and files to an open request at any time. This is the "no
   separate follow-up messages needed" promise.
 - **BR-24** The member can reopen a completed request within 14 days by replying to it.
-  **[Decision needed: Q6]**
+  (Q6)
 - **BR-25** The member can withdraw a request they no longer need.
 
 ### 6.4 Staff workspace
@@ -168,7 +192,7 @@ Center keeps no second list of people, because two lists drift apart.
   administrators see every request. The queue can be searched and filtered by status, topic,
   urgency, committee, assignee and age.
 - **BR-31** Each topic routes to a KPI committee by default. Staff can reroute a request, and the
-  member is told which committee now has it. **[Decision needed: Q3 for the routing table]**
+  member is told which committee now has it. (Q3)
 - **BR-32** A request can be assigned to a named person on the routed committee. That person's
   name is the "lead contact" the member sees.
 - **BR-33** Statuses, as the member sees them:
@@ -179,7 +203,7 @@ Center keeps no second list of people, because two lists drift apart.
   - Completed
   - Withdrawn
 
-  "Waiting on You" is new and pauses the response clock. **[Decision needed: Q5]**
+  "Waiting on You" is new and pauses the response clock. (Q5)
 - **BR-34** Staff can send member-facing replies, which the member sees and is emailed about. They
   can also write internal notes, which never leave the server for a member.
 - **BR-35** Closing a request as Completed requires a resolution note to the member. A request
@@ -218,8 +242,8 @@ Center keeps no second list of people, because two lists drift apart.
   - first-response and resolution times;
   - count of "This solved my question" deflections.
 - **BR-51** Export to CSV for administrators, with the same privacy rules as the screen.
-- **BR-52** The Google Sheet "D&T Master Requests" keeps receiving each request, if Jack wants to
-  keep it. **[Decision needed: Q8]**
+- **BR-52** The Google Sheet "D&T Master Requests" is retired at launch. The dashboard and CSV
+  export replace it, and the Apps Script link is switched off. (Q8)
 
 ### 6.7 Look, feel and wording
 
@@ -237,8 +261,8 @@ Center keeps no second list of people, because two lists drift apart.
   - "Order of KP, Inc." with no "The" (the proof-of-concept footer currently reads "THE ORDER OF
     KPI, INC." and must be corrected);
   - professional ticket terms ("Status", "Request Details", "Assigned to").
-- **BR-57** Headings appear in their own case, not capitals. The proof of concept's small gold
-  capitalized labels ("MEMBER SUPPORT") conflict with this. **[Decision needed: Q9]**
+- **BR-57** Headings, the small gold labels and button text appear in their own case, not capitals
+  ("Member support", "Check request status"). (Q9)
 - **BR-58** Works at phone width (375 px) with no sideways scrolling, and meets WCAG 2.1 AA
   (contrast, keyboard use, screen-reader labels).
 
