@@ -7,6 +7,7 @@
 import { and, asc, count, desc, eq, gte, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { getDb, getHolder } from "./db/client";
 import {
+  backups,
   deflections,
   files,
   history,
@@ -43,6 +44,7 @@ import {
   type Actor,
   type RequestAccessFacts,
 } from "./permissions";
+import type { DigestPerson, DigestRequest } from "./digest";
 import type { Claims } from "./sso";
 import { commitStaged, discardStaged, type StagedFile } from "./uploads";
 import { filesCapMessage, REOPEN_DAYS } from "../shared/limits";
@@ -162,6 +164,45 @@ export async function setMarker(key: string, value: number) {
     .values({ key: `marker:${key}`, value: JSON.stringify(value), updatedAt: now, updatedBy: "system" })
     .onConflictDoUpdate({ target: settings.key, set: { value: JSON.stringify(value), updatedAt: now } })
     .run();
+}
+
+/**
+ * Raises a marker to `value` only if it is lower now, in one statement, and says whether this
+ * call did it. Two workers that race for the same day's job: only one gets true.
+ */
+export async function claimMarker(key: string, value: number) {
+  ensureReady();
+  const now = Date.now();
+  const result = getHolder()
+    .sqlite.prepare(
+      "insert into settings (key, value, updated_at, updated_by) values (?, ?, ?, 'system') on conflict(key) do update set value = excluded.value, updated_at = excluded.updated_at where cast(settings.value as real) < cast(excluded.value as real)",
+    )
+    .run(`marker:${key}`, JSON.stringify(value), now);
+  return result.changes > 0;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Backups (BR-62)
+
+/** Copies the live database to `file` with SQLite's online backup, while the site keeps working. */
+export async function backupDatabaseTo(file: string) {
+  ensureReady();
+  await getHolder().sqlite.backup(file);
+}
+
+export type BackupRecord = Omit<typeof backups.$inferInsert, "id">;
+
+export async function recordBackup(record: BackupRecord) {
+  ensureReady().insert(backups).values(record).run();
+}
+
+export async function lastSuccessfulBackupAt(): Promise<number | null> {
+  const row = ensureReady().select({ at: sql<number | null>`max(${backups.finishedAt})` }).from(backups).where(eq(backups.status, "OK")).get();
+  return row?.at ?? null;
+}
+
+export async function recentBackups(limit = 20) {
+  return ensureReady().select().from(backups).orderBy(desc(backups.finishedAt), desc(backups.id)).limit(limit).all();
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -326,6 +367,14 @@ function enqueueEmail(db: DbLike, to: string, content: EmailContent, requestId: 
 export async function queueAlert(to: string[], content: EmailContent) {
   const db = ensureReady();
   for (const address of [...new Set(to)]) enqueueEmail(db, address, content, null, "alert");
+}
+
+/** Several emails at once, in one transaction (the daily digest). */
+export async function queueEmails(items: { to: string; content: EmailContent }[]) {
+  const db = ensureReady();
+  db.transaction((tx) => {
+    for (const item of items) enqueueEmail(tx, item.to, item.content, null);
+  });
 }
 
 export async function dueOutboxItems(now: number, limit = 20) {
@@ -882,6 +931,37 @@ export async function staffPeople(): Promise<PersonOption[]> {
     .filter((item) => canGlobal(claimsToActor(item.claims), "view_queue"))
     .map((item) => ({ email: item.row.email, name: item.row.name }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Daily digest (TECH_SPEC 5.4)
+
+/** Open requests with only the fields the digest may show. No titles, descriptions or notes. */
+export async function digestRequests(now = Date.now()): Promise<DigestRequest[]> {
+  const db = ensureReady();
+  const labels = topicLabels(db);
+  return db
+    .select()
+    .from(requests)
+    .where(inArray(requests.status, OPEN_STATUSES))
+    .orderBy(asc(requests.createdAt), asc(requests.id))
+    .all()
+    .map((row) => ({
+      number: row.requestNumber,
+      topicLabel: labels.get(row.topicCode) ?? row.topicCode,
+      urgency: row.urgency,
+      status: row.status,
+      statusLabel: STATUS_LABELS[row.status as StatusCode] ?? row.status,
+      createdAt: row.createdAt,
+      routedCommittee: row.routedCommittee,
+      assigneeEmail: row.assigneeEmail,
+      pastTarget: isPastTarget(row, now),
+    }));
+}
+
+/** Everyone who has signed in, with the roles from their latest sign-in. */
+export async function digestPeople(): Promise<DigestPerson[]> {
+  return knownPeople(ensureReady()).map((item) => ({ email: item.row.email, name: item.row.name, actor: claimsToActor(item.claims) }));
 }
 
 // ---------------------------------------------------------------------------------------------

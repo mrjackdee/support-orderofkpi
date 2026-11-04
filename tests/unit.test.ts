@@ -3,12 +3,15 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
+import { backupsToRemove } from "../lib/server/backup";
 import { addBusinessDays, businessDaysBetween, businessMsBetween, easternYear, isBusinessDay } from "../lib/server/business-time";
 import { csvCell } from "../lib/server/csv";
-import { federalHolidays } from "../lib/server/holidays";
+import { ageText, selectDigest, type DigestPerson, type DigestRequest } from "../lib/server/digest";
 import { safeFileName, sniffFile, zipEntryNames } from "../lib/server/file-check";
+import { federalHolidays } from "../lib/server/holidays";
 import { formatRequestNumber, normalizeRequestNumber } from "../lib/server/numbering";
 import { can, canBeAssigned, canGlobal, isSupportLead, staffRoutes, type Actor, type RequestAccessFacts } from "../lib/server/permissions";
+import { dayNumber, isJobDue } from "../lib/server/scheduler";
 import { buildSignature, normalizeClaims, signedHeaders } from "../lib/server/sso";
 import { FILES_PER_REQUEST, filesCapMessage, filesLeft } from "../lib/shared/limits";
 import { DEFAULT_TOPICS, routeForTopic } from "../lib/shared/topics";
@@ -286,6 +289,98 @@ test("business days skip federal holidays", () => {
   assert.equal(addBusinessDays(Date.UTC(2026, 10, 25, 14, 0), 2), Date.UTC(2026, 10, 30, 14, 0));
   // Thu 12/24 to Mon 12/28 is one business day (Christmas Friday, then the weekend).
   assert.equal(businessDaysBetween(Date.UTC(2026, 11, 24, 14, 0), Date.UTC(2026, 11, 28, 14, 0)), 1);
+});
+
+// --- scheduling ------------------------------------------------------------------------------
+
+test("jobs fall due at their Eastern time, the digest only on business days", () => {
+  const wed745 = Date.UTC(2026, 10, 4, 12, 45); // Wed 11/04/2026 7:45 AM EST
+  const wed801 = Date.UTC(2026, 10, 4, 13, 1);
+  assert.equal(isJobDue(wed745, 8 * 60, true), false);
+  assert.equal(isJobDue(wed801, 8 * 60, true), true);
+  assert.equal(isJobDue(Date.UTC(2026, 10, 11, 13, 1), 8 * 60, true), false); // Veterans Day
+  assert.equal(isJobDue(Date.UTC(2026, 10, 7, 13, 1), 8 * 60, true), false); // Saturday
+  assert.equal(isJobDue(Date.UTC(2026, 10, 7, 7, 1), 2 * 60, false), true); // backup runs every day, 2:01 AM EST
+  assert.equal(isJobDue(Date.UTC(2026, 10, 7, 6, 59), 2 * 60, false), false); // 1:59 AM EST
+  assert.equal(isJobDue(Date.UTC(2026, 10, 4, 16, 59), 8 * 60, true, 240), true); // 11:59 AM: still catches up
+  assert.equal(isJobDue(Date.UTC(2026, 10, 4, 17, 0), 8 * 60, true, 240), false); // noon: too late for a morning digest
+  assert.equal(dayNumber(Date.UTC(2027, 0, 1, 3, 0)), 20261231); // 10 PM Dec 31 in New York
+});
+
+// --- daily digest ----------------------------------------------------------------------------
+
+function digestRequest(overrides: Partial<DigestRequest>): DigestRequest {
+  return { number: "KP-BUG-2026-0001", topicLabel: "Website & Display Troubleshooting", urgency: "Normal", status: "RECEIVED", statusLabel: "Request Received", createdAt: 1000, routedCommittee: "digital_technology", assigneeEmail: null, pastTarget: false, ...overrides };
+}
+
+const person = (who: Actor): DigestPerson => ({ email: who.email, name: who.name, actor: who });
+
+test("digest lists open requests with nobody assigned or past target, to the route's chair", () => {
+  const requests = [
+    digestRequest({ number: "KP-BUG-2026-0001" }),
+    digestRequest({ number: "KP-BUG-2026-0002", assigneeEmail: "dan@orderofkpi.org" }), // assigned, on time: left out
+    digestRequest({ number: "KP-BUG-2026-0003", assigneeEmail: "dan@orderofkpi.org", pastTarget: true }),
+    digestRequest({ number: "KP-BUG-2026-0004", status: "COMPLETED" }), // closed: left out
+    digestRequest({ number: "KP-COM-2026-0001", routedCommittee: "scholarship", createdAt: 500 }),
+    digestRequest({ number: "KP-ACC-2026-0001", routedCommittee: "treasurer" }),
+    digestRequest({ number: "KP-COM-2026-0002", routedCommittee: "annual_event" }), // no chair known
+  ];
+  const people = [dtChair, dtMember, treasurer, admin, scholarshipChair, member].map(person);
+  const result = selectDigest(requests, people, ["alerts@example.org"]);
+  const byEmail = Object.fromEntries(result.map((entry) => [entry.email, entry.items.map((item) => item.number)]));
+  assert.deepEqual(byEmail, {
+    // Admin and the D&T chair are the support leads: they get the route with no chair.
+    "amy@orderofkpi.org": ["KP-COM-2026-0002"],
+    "cara@orderofkpi.org": ["KP-BUG-2026-0001", "KP-BUG-2026-0003", "KP-COM-2026-0002"],
+    "sam@orderofkpi.org": ["KP-COM-2026-0001"],
+    "tia@orderofkpi.org": ["KP-ACC-2026-0001"],
+  });
+  const third = result.find((entry) => entry.email === "cara@orderofkpi.org")?.items.find((item) => item.number === "KP-BUG-2026-0003");
+  assert.deepEqual(third?.reasons, ["past_target"]);
+  assert.equal(result.some((entry) => entry.email === "dan@orderofkpi.org"), false, "committee members who are not chair get no digest");
+});
+
+test("digest sends nothing when nothing needs attention, and falls back to the alert list with no leads", () => {
+  assert.deepEqual(selectDigest([digestRequest({ assigneeEmail: "dan@orderofkpi.org" })], [person(dtChair)]), []);
+  assert.deepEqual(selectDigest([], [person(dtChair)]), []);
+  const orphan = selectDigest([digestRequest({ routedCommittee: "annual_event" })], [person(member)], ["alerts@example.org"]);
+  assert.deepEqual(orphan.map((entry) => entry.email), ["alerts@example.org"]);
+});
+
+test("digest email carries number, topic, urgency, age, status and link only", async () => {
+  const { digestEmail } = await import("../lib/server/email");
+  const { digestLines } = await import("../lib/server/digest");
+  const now = Date.UTC(2026, 10, 4, 13, 0);
+  const items = [{ ...digestRequest({ createdAt: now - 3 * 86_400_000, urgency: "High" }), reasons: ["unassigned" as const, "past_target" as const] }];
+  const email = digestEmail("Cara Chair", digestLines(items, now));
+  assert.equal(email.subject, "1 support request needs attention");
+  for (const part of ["KP-BUG-2026-0001", "Website &amp; Display Troubleshooting", "Urgency: High", "Status: Request Received", "3 days old", "Nobody assigned · Past the response target", "/requests/KP-BUG-2026-0001"]) {
+    assert.ok(email.html.includes(part), part);
+  }
+  assert.ok(email.text.includes("Requests that need attention"));
+  assert.equal(ageText(now - 1000, now), "Sent today");
+  assert.equal(ageText(now - 86_400_000, now), "1 day old");
+});
+
+// --- backups ---------------------------------------------------------------------------------
+
+test("backup retention keeps the newest 14 days and touches only backup files", () => {
+  const names: string[] = [];
+  for (let day = 1; day <= 20; day += 1) {
+    const date = `2026-10-${String(day).padStart(2, "0")}`;
+    names.push(`support-${date}.db`, `uploads-${date}`);
+  }
+  names.push("support.db", "notes.txt", "support-2026-09-30.db.partial", "uploads-2026-09-30.partial", "support-latest.db");
+  const removed = backupsToRemove(names);
+  assert.deepEqual(
+    removed.sort(),
+    [
+      "support-2026-09-30.db.partial", "support-2026-10-01.db", "support-2026-10-02.db", "support-2026-10-03.db", "support-2026-10-04.db", "support-2026-10-05.db", "support-2026-10-06.db",
+      "uploads-2026-09-30.partial", "uploads-2026-10-01", "uploads-2026-10-02", "uploads-2026-10-03", "uploads-2026-10-04", "uploads-2026-10-05", "uploads-2026-10-06",
+    ].sort(),
+  );
+  assert.ok(!removed.includes("support.db") && !removed.includes("notes.txt") && !removed.includes("support-latest.db"));
+  assert.deepEqual(backupsToRemove(names.slice(0, 28)), []); // 14 days: nothing to remove
 });
 
 // --- file cap --------------------------------------------------------------------------------

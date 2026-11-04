@@ -111,6 +111,29 @@ export function outboxIntervalMs() {
   return positiveNumber("SUPPORT_OUTBOX_INTERVAL_SECONDS", 60) * 1000;
 }
 
+/** "HH:MM" (24-hour) as minutes after midnight, or the fallback when unset or malformed. */
+export function clockMinutes(raw: string, fallback: number) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(raw.trim());
+  if (!match) return fallback;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return hours < 24 && minutes < 60 ? hours * 60 + minutes : fallback;
+}
+
+/** When the nightly backup runs, US Eastern. SUPPORT_BACKUP_AT moves it, for testing only. */
+export function backupAtMinutes() {
+  return clockMinutes(env("SUPPORT_BACKUP_AT"), 2 * 60);
+}
+
+/** When the daily digest goes out on business days, US Eastern. SUPPORT_DIGEST_AT moves it. */
+export function digestAtMinutes() {
+  return clockMinutes(env("SUPPORT_DIGEST_AT"), 8 * 60);
+}
+
+export function backupsDir() {
+  return path.join(dataDir(), "backups");
+}
+
 export const SESSION_ABSOLUTE_MS = 12 * 60 * 60 * 1000;
 export const SESSION_IDLE_MS = 2 * 60 * 60 * 1000;
 export const PORTAL_TIMEOUT_MS = 8000;

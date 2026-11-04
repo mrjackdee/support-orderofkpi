@@ -2,6 +2,7 @@
 // a person.
 
 import { releaseStamp } from "@/lib/server/release";
+import { backupHealth } from "@/lib/server/scheduler";
 import { portalAnswers } from "@/lib/server/sso";
 import { databaseHealthy, outboxOldestPendingMinutes } from "@/lib/server/store";
 import { uploadsWritable } from "@/lib/server/uploads";
@@ -27,10 +28,17 @@ export async function GET() {
   } catch {
     outboxMinutes = 0;
   }
+  // BR-61: no good backup in 26 hours is degraded too.
+  let backup = { ok: false, lastBackupHoursAgo: null as number | null };
+  try {
+    if (db) backup = await backupHealth();
+  } catch {
+    backup = { ok: false, lastBackupHoursAgo: null };
+  }
   const portal = await portalReachable();
-  const ok = db && uploads && portal && outboxMinutes <= 30;
+  const ok = db && uploads && portal && outboxMinutes <= 30 && backup.ok;
   return Response.json(
-    { ok, db, uploads, outboxOldestPendingMinutes: outboxMinutes, portalReachable: portal, release: releaseStamp() },
+    { ok, db, uploads, outboxOldestPendingMinutes: outboxMinutes, portalReachable: portal, backup: backup.ok, lastBackupHoursAgo: backup.lastBackupHoursAgo, release: releaseStamp() },
     { status: ok ? 200 : 503, headers: { "cache-control": "no-store" } },
   );
 }

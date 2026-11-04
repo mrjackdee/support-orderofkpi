@@ -10,7 +10,7 @@
     "dev": "next dev --webpack",
     "build": "bash scripts/build-verified.sh",
     "start": "bash scripts/start-production.sh",
-    "test": "tsx --test tests/unit.test.ts tests/rendered-html.test.mjs",
+    "test": "tsx --test tests/unit.test.ts tests/data-jobs.test.ts tests/rendered-html.test.mjs",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
     "test:full": "npm run build && npm test",

@@ -14,7 +14,9 @@ export function requestLink(number: string) {
   return `${supportUrl()}/requests/${encodeURIComponent(number)}`;
 }
 
-function render(subject: string, heading: string, paragraphs: string[], number: string | null, linkLabel: string, link: string): EmailContent {
+type ListBlock = { html: string; text: string[] };
+
+function render(subject: string, heading: string, paragraphs: string[], number: string | null, linkLabel: string, link: string, list?: ListBlock): EmailContent {
   const htmlParagraphs = paragraphs.map((paragraph) => `<p style="margin:0 0 14px;color:#17221a;font-size:15px;line-height:1.6">${escapeHtml(paragraph)}</p>`).join("");
   const numberBlock = number
     ? `<p style="margin:18px 0;padding:14px 16px;border:1px solid #dce4dc;border-radius:10px;background:#f8faf7;color:#174b2a;font-size:18px;font-weight:700">${escapeHtml(number)}</p>`
@@ -26,13 +28,13 @@ function render(subject: string, heading: string, paragraphs: string[], number: 
 <span style="margin-left:10px;color:#17221a;font-size:14px;font-weight:700">KP Support Center</span></td></tr>
 <tr><td style="padding:26px">
 <h1 style="margin:0 0 16px;color:#17221a;font-size:22px;line-height:1.25">${escapeHtml(heading)}</h1>
-${htmlParagraphs}${numberBlock}
+${htmlParagraphs}${list?.html ?? ""}${numberBlock}
 <p style="margin:22px 0 6px"><a href="${escapeHtml(link)}" style="display:inline-block;padding:12px 18px;border-radius:10px;background:#174b2a;color:#ffffff;font-weight:700;font-size:14px;text-decoration:none">${escapeHtml(linkLabel)}</a></p>
 <p style="margin:16px 0 0;color:#5f6b63;font-size:13px;line-height:1.6">You will be asked to sign in with your KPI email address before the request opens.</p>
 </td></tr>
 <tr><td style="padding:16px 26px;border-top:1px solid #dce4dc;color:#5f6b63;font-size:12px">© Order of KP, Inc.</td></tr>
 </table></td></tr></table></body></html>`;
-  const text = [heading, "", ...paragraphs.flatMap((paragraph) => [paragraph, ""]), ...(number ? [`Request number: ${number}`, ""] : []), `${linkLabel}: ${link}`, "", "You will be asked to sign in with your KPI email address before the request opens.", "", "© Order of KP, Inc."].join("\n");
+  const text = [heading, "", ...paragraphs.flatMap((paragraph) => [paragraph, ""]), ...(list ? [...list.text, ""] : []), ...(number ? [`Request number: ${number}`, ""] : []), `${linkLabel}: ${link}`, "", "You will be asked to sign in with your KPI email address before the request opens.", "", "© Order of KP, Inc."].join("\n");
   return { subject, html, text };
 }
 
@@ -104,4 +106,55 @@ export function assignedEmail(name: string, number: string): EmailContent {
 
 export function alertEmail(summary: string, details: string[]): EmailContent {
   return render(`KP Support Center alert: ${summary}`, summary, details, null, "Open the Support Center health check", `${supportUrl()}/api/health`);
+}
+
+export type DigestLine = {
+  number: string;
+  topicLabel: string;
+  urgency: string;
+  statusLabel: string;
+  ageText: string;
+  reasons: string[];
+};
+
+/**
+ * The 8:00 AM digest (TECH_SPEC 5.4). Shows only the number, topic, urgency, age, status and a
+ * link for each request: never the title, the description or internal notes.
+ */
+export function digestEmail(name: string, lines: DigestLine[]): EmailContent {
+  const count = lines.length;
+  const items = lines
+    .map((line) => {
+      const link = requestLink(line.number);
+      return `<tr><td style="padding:12px 0;border-top:1px solid #dce4dc">
+<a href="${escapeHtml(link)}" style="color:#174b2a;font-size:16px;font-weight:700;text-decoration:none">${escapeHtml(line.number)}</a>
+<div style="margin-top:4px;color:#17221a;font-size:14px;line-height:1.5">${escapeHtml(line.topicLabel)}</div>
+<div style="color:#5f6b63;font-size:13px;line-height:1.5">Urgency: ${escapeHtml(line.urgency)} · Status: ${escapeHtml(line.statusLabel)} · ${escapeHtml(line.ageText)}</div>
+<div style="color:#966d12;font-size:13px;font-weight:700;line-height:1.5">${escapeHtml(line.reasons.join(" · "))}</div>
+</td></tr>`;
+    })
+    .join("");
+  const html = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 8px">${items}</table>`;
+  const text = lines.flatMap((line) => [
+    `${line.number}`,
+    `  ${line.topicLabel}`,
+    `  Urgency: ${line.urgency} · Status: ${line.statusLabel} · ${line.ageText}`,
+    `  ${line.reasons.join(" · ")}`,
+    `  ${requestLink(line.number)}`,
+    "",
+  ]);
+  return render(
+    count === 1 ? "1 support request needs attention" : `${count} support requests need attention`,
+    "Requests that need attention",
+    [
+      `Hello ${name},`,
+      count === 1
+        ? "This open request for your KPI committee has nobody assigned or is past the response target."
+        : "These open requests for your KPI committee have nobody assigned or are past the response target.",
+    ],
+    null,
+    "Open the staff queue",
+    `${supportUrl()}/staff`,
+    { html, text },
+  );
 }

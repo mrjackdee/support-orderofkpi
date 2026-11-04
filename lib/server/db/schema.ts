@@ -188,3 +188,27 @@ export const deflections = sqliteTable("deflections", {
   tipId: text("tip_id").notNull(),
   createdAt: integer("created_at").notNull(),
 });
+
+/** One row per nightly backup run (BR-62). Never holds member data, only counts. */
+export const backups = sqliteTable(
+  "backups",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    /** The Eastern date in the file name, YYYY-MM-DD. */
+    backupDate: text("backup_date").notNull(),
+    fileName: text("file_name").notNull(),
+    /** OK or FAILED */
+    status: text("status").notNull(),
+    /** What PRAGMA integrity_check answered on the copy ("ok" when sound). */
+    integrity: text("integrity"),
+    requestCount: integer("request_count"),
+    uploadFiles: integer("upload_files"),
+    uploadFilesCopied: integer("upload_files_copied"),
+    missingFiles: integer("missing_files"),
+    bytes: integer("bytes"),
+    error: text("error"),
+    startedAt: integer("started_at").notNull(),
+    finishedAt: integer("finished_at").notNull(),
+  },
+  (table) => [index("backups_status_idx").on(table.status, table.finishedAt)],
+);
