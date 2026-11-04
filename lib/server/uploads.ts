@@ -30,7 +30,7 @@ export function uploadPath(storageKey: string) {
 /** Checks each file's size and bytes, then writes it under a temporary name. */
 export async function stageUploads(entries: FormDataEntryValue[]): Promise<StagedFile[]> {
   const uploads = entries.filter((entry): entry is File => typeof entry !== "string" && entry.size > 0);
-  if (uploads.length > FILES_PER_SUBMISSION) throw new UploadError(`You can attach up to ${FILES_PER_SUBMISSION} files at a time.`);
+  if (uploads.length > FILES_PER_SUBMISSION) throw new UploadError(`A request can hold up to ${FILES_PER_SUBMISSION} files. Please choose fewer files.`);
   const checked: { file: File; bytes: Buffer; kind: FileKind }[] = [];
   for (const file of uploads) {
     if (file.size > FILE_MAX_BYTES) {

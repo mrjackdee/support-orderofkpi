@@ -10,6 +10,7 @@ import { safeFileName, sniffFile, zipEntryNames } from "../lib/server/file-check
 import { formatRequestNumber, normalizeRequestNumber } from "../lib/server/numbering";
 import { can, canBeAssigned, canGlobal, isSupportLead, staffRoutes, type Actor, type RequestAccessFacts } from "../lib/server/permissions";
 import { buildSignature, normalizeClaims, signedHeaders } from "../lib/server/sso";
+import { FILES_PER_REQUEST, filesCapMessage, filesLeft } from "../lib/shared/limits";
 import { DEFAULT_TOPICS, routeForTopic } from "../lib/shared/topics";
 
 function actor(overrides: Partial<Actor>): Actor {
@@ -285,4 +286,17 @@ test("business days skip federal holidays", () => {
   assert.equal(addBusinessDays(Date.UTC(2026, 10, 25, 14, 0), 2), Date.UTC(2026, 10, 30, 14, 0));
   // Thu 12/24 to Mon 12/28 is one business day (Christmas Friday, then the weekend).
   assert.equal(businessDaysBetween(Date.UTC(2026, 11, 24, 14, 0), Date.UTC(2026, 11, 28, 14, 0)), 1);
+});
+
+// --- file cap --------------------------------------------------------------------------------
+
+test("5 files per request in all, across the first submission and follow-ups (BR-13)", () => {
+  assert.equal(FILES_PER_REQUEST, 5);
+  assert.equal(filesCapMessage(0, 5), null);
+  assert.equal(filesCapMessage(3, 2), null);
+  assert.equal(filesCapMessage(5, 0), null);
+  assert.match(filesCapMessage(3, 3) ?? "", /already has 3 files, so you can add 2 more/);
+  assert.match(filesCapMessage(5, 1) ?? "", /already has 5 files, which is the most one request can hold/);
+  assert.equal(filesLeft(4), 1);
+  assert.equal(filesLeft(7), 0);
 });

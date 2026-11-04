@@ -3,7 +3,7 @@
 import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { postForm } from "@/app/components/client-api";
-import { FILE_ACCEPT, FILE_MAX_BYTES, FILES_PER_SUBMISSION, MESSAGE_MAX, formatBytes } from "@/lib/shared/limits";
+import { FILE_ACCEPT, FILE_MAX_BYTES, FILES_PER_REQUEST, MESSAGE_MAX, filesCapMessage, formatBytes } from "@/lib/shared/limits";
 
 export default function MessageForm({
   number,
@@ -13,6 +13,7 @@ export default function MessageForm({
   placeholder,
   buttonLabel,
   allowFiles,
+  filesLeft = FILES_PER_REQUEST,
   done,
   id,
 }: {
@@ -23,6 +24,8 @@ export default function MessageForm({
   placeholder: string;
   buttonLabel: string;
   allowFiles: boolean;
+  /** How many more files the request can hold (BR-13: 5 per request in all). */
+  filesLeft?: number;
   done: string;
   id: string;
 }) {
@@ -39,7 +42,8 @@ export default function MessageForm({
     setError("");
     setMessage("");
     const files = Array.from(fileInput.current?.files ?? []);
-    if (files.length > FILES_PER_SUBMISSION) return setError(`You can attach up to ${FILES_PER_SUBMISSION} files at a time.`);
+    const tooMany = filesCapMessage(FILES_PER_REQUEST - filesLeft, files.length);
+    if (tooMany) return setError(tooMany);
     const tooBig = files.find((file) => file.size > FILE_MAX_BYTES);
     if (tooBig) return setError(`"${tooBig.name}" is ${formatBytes(tooBig.size)}. Each file can be up to 10 MB.`);
     if (!body.trim() && !files.length) return setError("Write a message first.");
@@ -61,11 +65,18 @@ export default function MessageForm({
     <form className="message-form" onSubmit={submit}>
       <label id={`${id}-label`} htmlFor={`${id}-body`}>{label}</label>
       <textarea id={`${id}-body`} value={body} onChange={(event) => setBody(event.target.value)} maxLength={MESSAGE_MAX} rows={4} placeholder={placeholder} />
-      {allowFiles && (
+      {allowFiles && filesLeft > 0 && (
         <label className="file-field">Add files (optional)
           <input ref={fileInput} type="file" multiple accept={FILE_ACCEPT} />
-          <small>Up to {FILES_PER_SUBMISSION} files, 10 MB each: JPG, PNG, WebP, PDF, Word or Excel.</small>
+          <small>
+            This request can take {filesLeft === 1 ? "1 more file" : `${filesLeft} more files`} ({FILES_PER_REQUEST} in all), 10 MB each: JPG, PNG, WebP, PDF, Word or Excel.
+          </small>
         </label>
+      )}
+      {allowFiles && filesLeft <= 0 && (
+        <p className="file-field-full" data-testid="files-full">
+          This request already has {FILES_PER_REQUEST} files, the most it can hold. To share more, paste a shared-drive link in your message.
+        </p>
       )}
       {error && <p className="form-message error" role="alert">{error}</p>}
       {message && <p className="form-message" role="status">{message}</p>}

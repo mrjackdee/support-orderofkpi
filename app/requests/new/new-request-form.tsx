@@ -58,7 +58,7 @@ export default function NewRequestForm({
     const picked = Array.from(event.target.files ?? []);
     setError("");
     if (picked.length > FILES_PER_SUBMISSION) {
-      setError(`You can attach up to ${FILES_PER_SUBMISSION} files.`);
+      setError(`A request can hold up to ${FILES_PER_SUBMISSION} files. Please choose fewer files.`);
       event.target.value = "";
       setChosenFiles([]);
       return;

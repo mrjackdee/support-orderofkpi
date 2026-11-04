@@ -45,7 +45,7 @@ import {
 } from "./permissions";
 import type { Claims } from "./sso";
 import { commitStaged, discardStaged, type StagedFile } from "./uploads";
-import { REOPEN_DAYS } from "../shared/limits";
+import { filesCapMessage, REOPEN_DAYS } from "../shared/limits";
 import { OPEN_STATUSES, STATUS_LABELS, isStatusCode, type StatusCode } from "../shared/statuses";
 import { DEFAULT_TOPICS, ROUTES, isRouteCode, routeForTopic, routeName, type Topic } from "../shared/topics";
 import type {
@@ -670,6 +670,13 @@ export async function addMessage(number: string, actor: Actor, kind: MessageKind
           addHistory(tx, row.id, actor, "note", null, null, false, now);
           tx.update(requests).set({ updatedAt: now }).where(eq(requests.id, row.id)).run();
           return;
+        }
+        if (staged.length) {
+          // BR-13: 5 files per request in all, counted inside the write lock so two uploads at
+          // once cannot both squeeze past the limit.
+          const already = tx.select({ total: count() }).from(files).where(eq(files.requestId, row.id)).get()?.total ?? 0;
+          const refusal = filesCapMessage(already, staged.length);
+          if (refusal) throw new StoreError(refusal);
         }
         const message = tx
           .insert(messages)

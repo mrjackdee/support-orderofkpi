@@ -5,7 +5,7 @@ import { SiteFooter, SiteHeader } from "@/app/components/site-chrome";
 import { normalizeRequestNumber } from "@/lib/server/numbering";
 import { requireSignedIn } from "@/lib/server/page-session";
 import { ALL_ROUTES, getRequestView } from "@/lib/server/store";
-import { formatBytes } from "@/lib/shared/limits";
+import { filesLeft, formatBytes } from "@/lib/shared/limits";
 import { PROGRESS_STAGES, progressIndex } from "@/lib/shared/statuses";
 import type { FileView } from "@/lib/shared/views";
 import MessageForm from "./message-form";
@@ -39,6 +39,9 @@ export default async function RequestPage({ params }: { params: Promise<{ number
   const { request, staff } = view;
   const stage = progressIndex(request.status);
   const closed = request.status === "COMPLETED" || request.status === "WITHDRAWN";
+  // BR-13: 5 files per request in all. The server checks again when files are sent.
+  const fileCount = request.files.length + request.conversation.reduce((sum, item) => sum + (item.kind === "message" ? item.files.length : 0), 0);
+  const roomForFiles = filesLeft(fileCount);
 
   return (
     <main className="site-shell">
@@ -101,7 +104,7 @@ export default async function RequestPage({ params }: { params: Promise<{ number
                     <p className="eyebrow">{request.canReopen ? "Not solved?" : "Add details"}</p>
                     <h2>{request.canReopen ? "Reply to reopen this request" : "Anything else we should know?"}</h2>
                     {request.canReopen && request.reopenUntil && <p className="panel-copy">You can reopen it until {dateLabel(request.reopenUntil)}.</p>}
-                    <MessageForm number={request.number} csrf={session.csrf} kind="member" id="member-reply" label="Your message" placeholder="Add a detail, answer a question, or attach a screenshot." buttonLabel={request.canReopen ? "Reply and reopen" : "Send"} allowFiles done="Thank you. Your message is on the request." />
+                    <MessageForm number={request.number} csrf={session.csrf} kind="member" id="member-reply" label="Your message" placeholder="Add a detail, answer a question, or attach a screenshot." buttonLabel={request.canReopen ? "Reply and reopen" : "Send"} allowFiles filesLeft={roomForFiles} done="Thank you. Your message is on the request." />
                   </>
                 ) : (
                   <>
@@ -130,7 +133,7 @@ export default async function RequestPage({ params }: { params: Promise<{ number
                 <AssignControl key={`a-${staff.assigneeEmail ?? ""}`} number={request.number} csrf={session.csrf} staff={staff} />
                 {staff.canReroute && <RerouteControl key={`r-${staff.routedCommittee}`} number={request.number} csrf={session.csrf} current={staff.routedCommittee} routes={ALL_ROUTES} />}
                 {staff.canStaffReply && !closed && (
-                  <MessageForm number={request.number} csrf={session.csrf} kind="staff" id="staff-reply" label="Reply to the member" placeholder="The member sees this and is emailed." buttonLabel="Send reply to member" allowFiles done="Reply sent. The member has been emailed." />
+                  <MessageForm number={request.number} csrf={session.csrf} kind="staff" id="staff-reply" label="Reply to the member" placeholder="The member sees this and is emailed." buttonLabel="Send reply to member" allowFiles filesLeft={roomForFiles} done="Reply sent. The member has been emailed." />
                 )}
                 {staff.canNote && (
                   <MessageForm number={request.number} csrf={session.csrf} kind="note" id="internal-note" label="Internal note (staff only)" placeholder="Never shown to the member." buttonLabel="Save internal note" allowFiles={false} done="Note saved." />

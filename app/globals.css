@@ -851,6 +851,7 @@ footer a, footer button, .dashboard-footer button { font-size: 12px; letter-spac
 .file-field { display: grid; gap: 6px; }
 .file-field input { padding: 9px; font-size: 13px; }
 .file-field small { color: var(--muted); font-size: 12px; font-weight: 500; }
+.file-field-full { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .follow-up-card { display: grid; gap: 10px; }
 .follow-up-card .button { justify-self: start; }
 .withdraw-link { justify-self: start; margin-top: 6px; color: var(--danger); }
