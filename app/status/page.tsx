@@ -1,14 +1,10 @@
-import SupportCenter from "../support-center";
-import { requirePrelaunchAdmin, supportRequestsEnabled } from "../prelaunch-auth";
+import { permanentRedirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function StatusPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ id?: string }>;
-}) {
+// The prelaunch status page moved to /requests. A number in ?id= opens that request.
+export default async function StatusPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const params = await searchParams;
-  const admin = await requirePrelaunchAdmin(`/status${params.id ? `?id=${encodeURIComponent(params.id)}` : ""}`);
-  return <SupportCenter initialView="status" initialEmail={admin.email} initialIsCommittee initialLookup={params.id ?? ""} requestsEnabled={supportRequestsEnabled()} />;
+  const id = (params.id ?? "").trim().toUpperCase();
+  permanentRedirect(/^KP-[A-Z]{2,5}-\d{4}-\d{4,}$/.test(id) ? `/requests/${encodeURIComponent(id)}` : "/requests");
 }

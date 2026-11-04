@@ -1,9 +1,6 @@
-import CommitteeDashboard from "./committee-dashboard";
-import { requirePrelaunchAdmin } from "../prelaunch-auth";
+import { permanentRedirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function CommitteePage() {
-  const admin = await requirePrelaunchAdmin("/committee");
-  return <CommitteeDashboard viewerEmail={admin.email} />;
+// The prelaunch D&T dashboard moved to the staff queue. committee-dashboard.tsx is no longer used.
+export default function CommitteePage() {
+  permanentRedirect("/staff");
 }
