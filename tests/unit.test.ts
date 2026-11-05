@@ -6,7 +6,8 @@ import test from "node:test";
 import { backupsToRemove } from "../lib/server/backup";
 import { addBusinessDays, businessDaysBetween, businessMsBetween, easternYear, isBusinessDay } from "../lib/server/business-time";
 import { csvCell } from "../lib/server/csv";
-import { ageText, selectDigest, type DigestPerson, type DigestRequest } from "../lib/server/digest";
+import { ageText, selectDigest, selectDigestFor, type DigestPerson, type DigestRequest } from "../lib/server/digest";
+import { digestEmails } from "../lib/server/config";
 import { safeFileName, sniffFile, zipEntryNames } from "../lib/server/file-check";
 import { federalHolidays } from "../lib/server/holidays";
 import { formatRequestNumber, normalizeRequestNumber } from "../lib/server/numbering";
@@ -345,6 +346,35 @@ test("digest sends nothing when nothing needs attention, and falls back to the a
   assert.deepEqual(selectDigest([], [person(dtChair)]), []);
   const orphan = selectDigest([digestRequest({ routedCommittee: "annual_event" })], [person(member)], ["alerts@example.org"]);
   assert.deepEqual(orphan.map((entry) => entry.email), ["alerts@example.org"]);
+});
+
+test("digest goes only to the fixed digest address, with every request that needs attention (ruling 11-05-2026)", () => {
+  const requests = [
+    digestRequest({ number: "KP-BUG-2026-0001" }),
+    digestRequest({ number: "KP-BUG-2026-0002", assigneeEmail: "dan@orderofkpi.org" }),
+    digestRequest({ number: "KP-ACC-2026-0001", routedCommittee: "treasurer", createdAt: 500 }),
+    digestRequest({ number: "KP-COM-2026-0001", routedCommittee: "scholarship", pastTarget: true, assigneeEmail: "sam@orderofkpi.org" }),
+    digestRequest({ number: "KP-BUG-2026-0004", status: "COMPLETED" }),
+  ];
+  const result = selectDigestFor(requests, ["CTO@orderofkpi.org"]);
+  assert.deepEqual(result.map((entry) => entry.email), ["cto@orderofkpi.org"]);
+  assert.deepEqual(result[0].items.map((item) => item.number), ["KP-ACC-2026-0001", "KP-BUG-2026-0001", "KP-COM-2026-0001"]);
+  assert.deepEqual(selectDigestFor([digestRequest({ assigneeEmail: "dan@orderofkpi.org" })], ["cto@orderofkpi.org"]), []);
+  assert.deepEqual(selectDigestFor(requests, []), []);
+});
+
+test("digest address comes from SUPPORT_DIGEST_EMAILS, else SUPPORT_ALERT_EMAILS", () => {
+  const saved = { d: process.env.SUPPORT_DIGEST_EMAILS, a: process.env.SUPPORT_ALERT_EMAILS };
+  try {
+    process.env.SUPPORT_ALERT_EMAILS = "alerts@example.org";
+    process.env.SUPPORT_DIGEST_EMAILS = " cto@orderofkpi.org ";
+    assert.deepEqual(digestEmails(), ["cto@orderofkpi.org"]);
+    delete process.env.SUPPORT_DIGEST_EMAILS;
+    assert.deepEqual(digestEmails(), ["alerts@example.org"]);
+  } finally {
+    if (saved.d === undefined) delete process.env.SUPPORT_DIGEST_EMAILS; else process.env.SUPPORT_DIGEST_EMAILS = saved.d;
+    if (saved.a === undefined) delete process.env.SUPPORT_ALERT_EMAILS; else process.env.SUPPORT_ALERT_EMAILS = saved.a;
+  }
 });
 
 test("digest email carries number, topic, urgency, age, status and link only", async () => {

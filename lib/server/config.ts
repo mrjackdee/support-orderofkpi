@@ -90,11 +90,24 @@ export function smtpConfig() {
   };
 }
 
-export function alertEmails() {
-  return env("SUPPORT_ALERT_EMAILS")
+function emailList(name: string) {
+  return env(name)
     .split(",")
     .map((item) => item.trim().toLowerCase())
     .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item));
+}
+
+export function alertEmails() {
+  return emailList("SUPPORT_ALERT_EMAILS");
+}
+
+/**
+ * Who receives the daily digest (CEO ruling 11-05-2026: one fixed address, not committee chairs).
+ * SUPPORT_DIGEST_EMAILS, or SUPPORT_ALERT_EMAILS when that is unset.
+ */
+export function digestEmails() {
+  const list = emailList("SUPPORT_DIGEST_EMAILS");
+  return list.length ? list : alertEmails();
 }
 
 /** How old a portal access check may get before it is repeated (TECH_SPEC 3.2: 10 minutes). */

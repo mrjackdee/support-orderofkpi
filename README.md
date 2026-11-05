@@ -29,12 +29,13 @@ Requirements are in [docs/BRD.md](docs/BRD.md) (BR numbers) and the design in
   past-target counts and the daily digest all use them.
 - **Files**: up to 5 per request in all, counting the first submission, every follow-up and staff
   replies (BR-13). The server refuses a sixth with a plain message.
-- **Daily digest**: at 8:00 AM Eastern on business days, each KPI committee chair (the Treasurer
-  for the Treasurer's queue) gets one email listing their open requests that have nobody assigned
-  or are past the response target. Requests on a KPI committee with no chair go to the support
-  leads. Nobody gets an empty email. Each line shows only the request number, topic, urgency, age,
-  status and a link: never the title, the description or internal notes. It goes through the
-  outbox. If the server was down at 8:00 it catches up until noon, never later.
+- **Daily digest**: at 8:00 AM Eastern on business days, one email to the digest address
+  (`SUPPORT_DIGEST_EMAILS`, set to `cto@orderofkpi.org` by CEO ruling of 11-05-2026; never the
+  committee chairs) listing every open request that has nobody assigned or is past the response
+  target. If `SUPPORT_DIGEST_EMAILS` is unset it goes to `SUPPORT_ALERT_EMAILS`. Nobody gets an
+  empty email. Each line shows only the request number, topic, urgency, age, status and a link:
+  never the title, the description or internal notes. It goes through the outbox. If the server
+  was down at 8:00 it catches up until noon, never later.
 - **Release stamp**: the footer shows `release.json` (`{"release": "2026-11-30 v.01"}`) if the
   deploy writes one, otherwise `v.00`.
 
@@ -115,7 +116,8 @@ Set these in Hostinger. Never commit real values. `.env.example` shows the forma
 | `SUPPORT_URL` | This site's address. `https://support.orderofkpi.com` marks the live site, which refuses `qa.` and `test.` accounts |
 | `SUPPORT_DATA_DIR` | Folder outside the web root for the database and uploads. Back it up daily |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Outgoing email (the portal's settings; from `info@kpi2012.org`) |
-| `SUPPORT_ALERT_EMAILS` | Comma-separated addresses alerted about failures |
+| `SUPPORT_ALERT_EMAILS` | Comma-separated addresses alerted about failures (ruling 11-05-2026: `cto@orderofkpi.org` only) |
+| `SUPPORT_DIGEST_EMAILS` | Who gets the daily digest (ruling 11-05-2026: `cto@orderofkpi.org` only). Unset: `SUPPORT_ALERT_EMAILS` |
 | `SUPPORT_REQUESTS_ENABLED` | `true` or `false`. Unset: off on the live site, on elsewhere |
 
 Testing only: `SUPPORT_SSO_RECHECK_SECONDS` (default 600), `SUPPORT_SSO_GRACE_SECONDS`
