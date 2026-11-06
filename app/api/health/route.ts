@@ -8,18 +8,18 @@ import { getAlertRecipients, minutesSince, resolveAlertRecipients, type AlertRec
 import { alertEmails } from "@/lib/server/config";
 import { releaseStamp } from "@/lib/server/release";
 import { backupHealth } from "@/lib/server/scheduler";
-import { portalAnswers } from "@/lib/server/sso";
+import { portalStatus } from "@/lib/server/sso";
 import { databaseHealthy, outboxOldestPendingMinutes } from "@/lib/server/store";
 import { uploadsWritable } from "@/lib/server/uploads";
 
 export const dynamic = "force-dynamic";
 
-let portalCache: { value: boolean; at: number } | null = null;
+let portalCache: { value: { ok: boolean; detail: string | null }; at: number } | null = null;
 
 async function portalReachable() {
   const now = Date.now();
   if (portalCache && now - portalCache.at < 60_000) return portalCache.value;
-  const value = await portalAnswers();
+  const value = await portalStatus();
   portalCache = { value, at: now };
   return value;
 }
@@ -50,9 +50,9 @@ export async function GET() {
   const alertRecipientsSource: AlertRecipientsSource = alerts.source;
   const alertListRefreshedMinutesAgo = minutesSince(alerts.fetchedAt, Date.now());
   const portal = await portalReachable();
-  const ok = db && uploads && portal && outboxMinutes <= 30 && backup.ok;
+  const ok = db && uploads && portal.ok && outboxMinutes <= 30 && backup.ok;
   return Response.json(
-    { ok, db, uploads, outboxOldestPendingMinutes: outboxMinutes, portalReachable: portal, backup: backup.ok, lastBackupHoursAgo: backup.lastBackupHoursAgo, release: releaseStamp(), alertRecipientsSource, alertListRefreshedMinutesAgo },
+    { ok, db, uploads, outboxOldestPendingMinutes: outboxMinutes, portalReachable: portal.ok, ...(portal.ok ? {} : { portalProblem: portal.detail }), backup: backup.ok, lastBackupHoursAgo: backup.lastBackupHoursAgo, release: releaseStamp(), alertRecipientsSource, alertListRefreshedMinutesAgo },
     { status: ok ? 200 : 503, headers: { "cache-control": "no-store" } },
   );
 }

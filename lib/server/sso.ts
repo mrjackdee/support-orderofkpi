@@ -102,7 +102,7 @@ async function call(name: "exchange" | "password" | "check" | "settings", payloa
   } catch {
     parsed = {};
   }
-  if (response.status >= 500) throw new PortalUnavailableError(`${name}: HTTP ${response.status}`);
+  if (response.status >= 500) throw new PortalUnavailableError(`${name}: HTTP ${response.status}${typeof parsed.error === "string" ? ` ${parsed.error}` : ""}`);
   if (response.status === 401 && parsed.error === "BAD_SIGNATURE") throw new PortalUnavailableError(`${name}: signature refused`);
   return { status: response.status, body: parsed };
 }
@@ -145,7 +145,8 @@ export async function checkEmails(emails: string[]): Promise<CheckResult> {
   const unique = [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))].slice(0, 100);
   const reply = await call("check", { emails: unique });
   if (reply.status !== 200 || !reply.body.results || typeof reply.body.results !== "object") {
-    throw new PortalUnavailableError(`check: HTTP ${reply.status}`);
+    const code = typeof reply.body.error === "string" ? ` ${reply.body.error}` : Object.keys(reply.body).length ? "" : " (not a portal reply)";
+    throw new PortalUnavailableError(`check: HTTP ${reply.status}${code}`);
   }
   const results: CheckResult = {};
   const raw = reply.body.results as Record<string, { allowed?: unknown; claims?: unknown }>;
@@ -178,10 +179,20 @@ export async function fetchPortalSettings(): Promise<Record<string, unknown>> {
 
 /** For /api/health: does the portal answer a signed call at all? */
 export async function portalAnswers() {
+  return (await portalStatus()).ok;
+}
+
+/**
+ * Whether the portal answers a signed call, and if not, why, in words safe to show publicly on
+ * the health page: a status code or error name, never a secret, a URL query or a member's address.
+ * Without the reason, a failing sign-in link on a new site can only be guessed at.
+ */
+export async function portalStatus(): Promise<{ ok: boolean; detail: string | null }> {
   try {
     await checkEmails([]);
-    return true;
-  } catch {
-    return false;
+    return { ok: true, detail: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    return { ok: false, detail: message.replace(/[^\w .:,()-]/g, "").slice(0, 120) };
   }
 }
