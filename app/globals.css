@@ -973,3 +973,38 @@ h3.settings-heading { margin-top: 26px; }
   .topbar .primary-nav { grid-column: 1 / -1; grid-row: 2; margin-bottom: 0; }
   .topbar-action { min-height: 40px; padding: 0 12px; }
 }
+
+/* Sign-in card: the Member Portal's layout (seal, heading, icon fields, eye, Remember me,
+   full-width rounded button), in the Support Center's green and gold. Jack, 11/06/2026. */
+.signin-page { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 32px 16px; background: var(--canvas); }
+.signin-card { width: min(460px, 100%); padding: 32px; border-radius: 24px; background: var(--green-deep); color: #f4f7f4; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 24px 60px rgba(16,55,30,.28); }
+.signin-head { display: flex; align-items: center; gap: 16px; }
+.signin-seal { width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(255,255,255,.2); }
+.signin-org { margin: 0 0 4px; color: #efd88f; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+.signin-card h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -.03em; color: #fff; }
+.signin-lead { margin: 16px 0 0; color: #c9d8cd; font-size: 14px; line-height: 1.55; }
+.signin-notice { margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: rgba(239,216,143,.12); border: 1px solid rgba(239,216,143,.35); color: #f6e7b8; font-size: 13px; line-height: 1.5; }
+.signin-form { display: flex; flex-direction: column; gap: 18px; margin-top: 22px; }
+.signin-error { padding: 12px 14px; border-radius: 12px; background: rgba(165,62,50,.28); border: 1px solid rgba(248,180,170,.45); color: #fde2dd; font-size: 13px; line-height: 1.5; }
+.signin-field { display: flex; flex-direction: column; gap: 8px; }
+.signin-field label, .signin-label-row label { color: #eef4ef; font-size: 14px; font-weight: 600; }
+.signin-label-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.signin-forgot { color: #efd88f; font-size: 14px; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgba(239,216,143,.5); padding: 4px 0; }
+.signin-forgot:hover { color: #fff; }
+.signin-box { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 16px; border-radius: 14px; background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.16); color: #c9d8cd; }
+.signin-box:focus-within { border-color: #efd88f; box-shadow: 0 0 0 3px rgba(239,216,143,.25); }
+.signin-box-password { padding-right: 4px; }
+.signin-box input { flex: 1; min-width: 0; height: 50px; border: 0; outline: 0; background: transparent; color: #fff; font-size: 16px; }
+.signin-box input::placeholder { color: #9fb3a6; }
+.signin-eye { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 10px; background: transparent; color: #c9d8cd; cursor: pointer; flex-shrink: 0; }
+.signin-eye:hover { color: #fff; background: rgba(255,255,255,.06); }
+.signin-eye:focus-visible, .signin-submit:focus-visible, .signin-forgot:focus-visible, .signin-remember input:focus-visible { outline: 3px solid #efd88f; outline-offset: 2px; }
+.signin-remember { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; align-self: flex-start; color: #dbe6de; font-size: 14px; cursor: pointer; }
+.signin-remember input { width: 20px; height: 20px; margin: 0; accent-color: #efd88f; cursor: pointer; }
+.signin-submit { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 54px; border: 0; border-radius: 999px; background: #fbf4df; color: var(--green-deep); font-size: 15px; font-weight: 700; cursor: pointer; }
+.signin-submit:hover { background: #fff; }
+.signin-submit:disabled { opacity: .7; cursor: progress; }
+.signin-help { margin: 18px 0 0; color: #c9d8cd; font-size: 13px; line-height: 1.55; }
+.signin-help a { color: #efd88f; }
+.signin-stamp { width: min(460px, 100%); display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+@media (max-width: 520px) { .signin-card { padding: 24px 20px; border-radius: 20px; } .signin-card h1 { font-size: 24px; } }

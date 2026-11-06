@@ -11,7 +11,7 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     // Next.js streams its page data in inline scripts, so scripts need 'unsafe-inline' without a
     // per-request nonce. Everything else is limited to this site.
-    value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://assets.orderofkpi.org; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
   },
 ];
 

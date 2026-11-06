@@ -6,6 +6,8 @@ import { releaseStamp } from "@/lib/server/release";
 import SignInForm from "./sign-in-form";
 
 export const dynamic = "force-dynamic";
+
+const SEAL_URL = "https://assets.orderofkpi.org/images/logos/kpi_seal_silver.png";
 export const metadata: Metadata = { title: "Sign in | KP Support Center", robots: { index: false } };
 
 const NOTICES: Record<string, string> = {
@@ -23,19 +25,22 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
   const notice = flash || (params.reason ? NOTICES[params.reason] ?? "" : "");
   const resetUrl = `${portalUrl() || "https://orderofkpi.com"}/reset-password`;
   return (
-    <main className="admin-login-page">
-      <section className="admin-login-card">
-        <a className="brand" href="/" aria-label="KP Support Center home"><span className="brand-mark" aria-hidden="true">KP</span><span className="brand-copy"><strong>Member support</strong><small>Order of KP</small></span></a>
-        <div className="admin-login-heading">
-          <p className="eyebrow">KP Support Center</p>
-          <h1>Sign in</h1>
-          <p>Use the same KPI email address and password you use on the Member Portal.</p>
+    <main className="signin-page">
+      <section className="signin-card" aria-labelledby="signin-title">
+        <div className="signin-head">
+          {/* The Order's silver seal, as on the Member Portal's sign-in card. */}
+          <img className="signin-seal" src={SEAL_URL} alt="Order of KP, Inc. seal" width={56} height={56} referrerPolicy="no-referrer" />
+          <div>
+            <p className="signin-org">Order of KP, Inc.</p>
+            <h1 id="signin-title">Sign in</h1>
+          </div>
         </div>
-        {notice && <div className="login-notice" role="status">{notice}</div>}
+        <p className="signin-lead">KP Support Center. Use the same email address and password you use on the Member Portal.</p>
+        {notice && <div className="signin-notice" role="status">{notice}</div>}
         <SignInForm next={next} resetUrl={resetUrl} />
-        <p className="sign-in-help">Can&apos;t sign in? Use Forgot password, or email <a href={`mailto:${ADMIN_CONTACT}`}>{ADMIN_CONTACT}</a>.</p>
-        <p className="sign-in-stamp"><span>© Order of KP, Inc.</span><span>{releaseStamp()}</span></p>
+        <p className="signin-help">Can&apos;t sign in? Use Forgot Password, or email <a href={`mailto:${ADMIN_CONTACT}`}>{ADMIN_CONTACT}</a>.</p>
       </section>
+      <p className="signin-stamp"><span>© Order of KP, Inc.</span><span>{releaseStamp()}</span></p>
     </main>
   );
 }
