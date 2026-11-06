@@ -19,10 +19,20 @@ Requirements are in [docs/BRD.md](docs/BRD.md) (BR numbers) and the design in
   `${SUPPORT_DATA_DIR}/uploads/`. Migrations in `lib/server/db/migrations` run when the server
   starts. All data access goes through `lib/server/store.ts`, so a MySQL version can replace it.
 - **Email** goes through an outbox with retries (1 m, 5 m, 30 m, 2 h, 6 h). A final failure
-  emails `SUPPORT_ALERT_EMAILS`. Without `SMTP_HOST`, emails are recorded as `NOT_CONFIGURED`.
+  emails the alert list (below). Without `SMTP_HOST`, emails are recorded as `NOT_CONFIGURED`.
+- **Who gets failure alerts** (failed or missed backups, emails that could not be delivered or are
+  stuck, the portal sign-in check not answering): by Jack's ruling of 11/06/2026, administrators
+  keep this list on the orderofkpi.com Admin Dashboard. The support server fetches it with a
+  signed `POST /api/support-sso/settings` when it starts and every 10 minutes, and keeps the last
+  good list in its database. Until the first good fetch it uses `SUPPORT_ALERT_EMAILS`, and if that
+  is unset, `cto@orderofkpi.org`. A failed or invalid answer (it must be 1 to 10 valid addresses)
+  keeps the last list; only after 24 hours without a good fetch does one alert go out (at most
+  every 6 hours) saying the list could not be refreshed. `/staff/settings` shows the list read-only.
 - **Health**: `GET /api/health` answers `{ok, db, uploads, outboxOldestPendingMinutes,
-  portalReachable, backup, lastBackupHoursAgo, release}`, with HTTP 503 when anything is wrong,
-  including no good backup in 26 hours. Point the uptime monitor here.
+  portalReachable, backup, lastBackupHoursAgo, release, alertRecipientsSource,
+  alertListRefreshedMinutesAgo}`, with HTTP 503 when anything is wrong, including no good backup in
+  26 hours. `alertRecipientsSource` is `portal`, `env` or `default`; a failed fetch of the alert
+  list does not make health degraded by itself. Point the uptime monitor here.
 - **Business days** are Monday to Friday in US Eastern, except the 11 US federal holidays on the
   day they are observed (a Saturday holiday on the Friday before, a Sunday one on the Monday
   after). They are worked out for any year in `lib/server/holidays.ts`. Response targets, the
@@ -32,7 +42,8 @@ Requirements are in [docs/BRD.md](docs/BRD.md) (BR numbers) and the design in
 - **Daily digest**: at 8:00 AM Eastern on business days, one email to the digest address
   (`SUPPORT_DIGEST_EMAILS`, set to `cto@orderofkpi.org` by CEO ruling of 11-05-2026; never the
   committee chairs) listing every open request that has nobody assigned or is past the response
-  target. If `SUPPORT_DIGEST_EMAILS` is unset it goes to `SUPPORT_ALERT_EMAILS`. Nobody gets an
+  target. If `SUPPORT_DIGEST_EMAILS` is unset it goes to the alert list (from the portal, else
+  `SUPPORT_ALERT_EMAILS`, else `cto@orderofkpi.org`). Nobody gets an
   empty email. Each line shows only the request number, topic, urgency, age, status and a link:
   never the title, the description or internal notes. It goes through the outbox. If the server
   was down at 8:00 it catches up until noon, never later.
@@ -57,7 +68,7 @@ After each backup the copy is opened read-only and checked: `PRAGMA integrity_ch
 requests, and that every attached file is there. The result is saved in the `backups` table. The
 14 newest days are kept and older backup files deleted; nothing else is ever deleted.
 
-If a backup fails, an alert goes to `SUPPORT_ALERT_EMAILS` (at most every 6 hours) and it tries
+If a backup fails, an alert goes to the alert list (at most every 6 hours) and it tries
 again every hour. If there has been no good backup for 26 hours, another alert goes out (once a
 day) and `/api/health` reports degraded with `lastBackupHoursAgo`.
 
@@ -116,12 +127,13 @@ Set these in Hostinger. Never commit real values. `.env.example` shows the forma
 | `SUPPORT_URL` | This site's address. `https://support.orderofkpi.com` marks the live site, which refuses `qa.` and `test.` accounts |
 | `SUPPORT_DATA_DIR` | Folder outside the web root for the database and uploads. Back it up daily |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Outgoing email (the portal's settings; from `info@kpi2012.org`) |
-| `SUPPORT_ALERT_EMAILS` | Comma-separated addresses alerted about failures (ruling 11-05-2026: `cto@orderofkpi.org` only) |
-| `SUPPORT_DIGEST_EMAILS` | Who gets the daily digest (ruling 11-05-2026: `cto@orderofkpi.org` only). Unset: `SUPPORT_ALERT_EMAILS` |
+| `SUPPORT_ALERT_EMAILS` | Fallback only: who is alerted about failures until the list is first fetched from the portal's Admin Dashboard. Unset: `cto@orderofkpi.org` |
+| `SUPPORT_DIGEST_EMAILS` | Who gets the daily digest (ruling 11-05-2026: `cto@orderofkpi.org` only). Unset: the alert list |
 | `SUPPORT_REQUESTS_ENABLED` | `true` or `false`. Unset: off on the live site, on elsewhere |
 
 Testing only: `SUPPORT_SSO_RECHECK_SECONDS` (default 600), `SUPPORT_SSO_GRACE_SECONDS`
-(default 1800), `SUPPORT_OUTBOX_INTERVAL_SECONDS` (default 60), and `SUPPORT_BACKUP_AT` (default
+(default 1800), `SUPPORT_OUTBOX_INTERVAL_SECONDS` (default 60), `SUPPORT_SETTINGS_REFRESH_SECONDS`
+(default 600, how often the alert list is fetched from the portal), and `SUPPORT_BACKUP_AT` (default
 `02:00`) and `SUPPORT_DIGEST_AT` (default `08:00`), each a 24-hour Eastern time, which move the
 nightly backup and the daily digest. Leave them unset on the real sites.
 

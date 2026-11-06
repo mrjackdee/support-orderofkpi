@@ -100,6 +100,7 @@ Principles:
 | `POST /api/support-sso/exchange` | Support server | `SUPPORT_SSO_CLIENT_SECRET` (HMAC-signed request, timestamp within 60 s) | Swaps the code for claims. Re-runs `portalSignInAccess` before answering |
 | `POST /api/support-sso/password` | Support server | Client secret, plus the member's IP forwarded in a signed header | Direct sign-in (BR-2). Runs the **same** code path as `/api/auth/login`, including rate limits keyed on the member's real IP. Returns claims, never a portal token |
 | `POST /api/support-sso/check` | Support server | Client secret | Takes up to 100 `person_id`s; returns current access, roles and committees, and `passwordChangedAt` |
+| `POST /api/support-sso/settings` | Support server | Client secret | Body `{}`. Returns `{alertEmails, updatedAt}`: who gets failure alerts, kept on the Admin Dashboard (5.3) |
 
 Claims returned:
 
@@ -247,8 +248,20 @@ prelaunch code is retired after launch, with Jack's ruling (no deletion without 
   not used.
 - **Failure signal.** After the final attempt fails, or if the oldest pending item is more than 30
   minutes old:
-  - an alert email goes to `SUPPORT_ALERT_EMAILS`;
+  - an alert email goes to the alert list (below);
   - `/api/health` reports degraded, so the uptime monitor pages a person.
+
+**Who gets alerts (Jack, 11/06/2026).** Failure alerts (backup failed or missed, an email that
+could not be delivered or is stuck, the portal not answering) go to `cto@orderofkpi.org`, and
+administrators manage the list on the orderofkpi.com Admin Dashboard, not on the Support Center.
+The support server fetches it with a signed `POST /api/support-sso/settings` (body `{}`, answer
+`{alertEmails, updatedAt}`) at start-up and every 10 minutes, accepts only 1 to 10 valid addresses,
+and stores the last good list with when it was fetched, so it survives restarts. Before the first
+good fetch it uses `SUPPORT_ALERT_EMAILS`, then `cto@orderofkpi.org`. A failed fetch keeps the last
+list and is not itself an alert; after 24 hours without a good fetch one alert goes to the current
+list, at most every 6 hours. `/staff/settings` shows the list read-only; `/api/health` reports
+`alertRecipientsSource` and `alertListRefreshedMinutesAgo`. The per-site extra addresses on the
+settings page are for new-request notifications only.
 
 ### 5.4 Response clock
 
@@ -302,13 +315,13 @@ prelaunch code is retired after launch, with Jack's ruling (no deletion without 
   - `DATABASE_URL`, `SUPPORT_DATA_DIR`;
   - `PORTAL_URL`, `SUPPORT_SSO_CLIENT_SECRET`, `SESSION_SECRET`;
   - `SMTP_*`;
-  - `SUPPORT_ALERT_EMAILS`;
+  - `SUPPORT_ALERT_EMAILS` (fallback only; section 5.3);
   - `GOOGLE_APPS_SCRIPT_URL`, `GOOGLE_APPS_SCRIPT_SECRET` (optional);
   - `SUPPORT_REQUESTS_ENABLED`;
   - `IS_PRODUCTION_SITE` (derived from the host).
 - Monitoring:
   - an external uptime check on `/api/health` for both copies, every 5 minutes;
-  - alerts go by email to `SUPPORT_ALERT_EMAILS`;
+  - alerts go by email to the alert list kept on the portal Admin Dashboard (section 5.3);
   - nightly backup job with a success and failure email;
   - a restore drill before launch (BR-62).
 
