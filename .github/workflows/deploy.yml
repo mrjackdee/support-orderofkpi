@@ -123,40 +123,59 @@ jobs:
 
           # Settings spelled out, never auto-detected: a Next.js app built by scripts/build-verified.sh
           # into .next, on Node 22. These match the build Hostinger already ran for this repository.
-          BUILD=$(curl -fsS -X POST "$API/api/hosting/v1/accounts/$USERNAME/websites/$DOMAIN/nodejs/builds" \
-                -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-                -d '{
-                      "node_version": 22,
-                      "app_type": "next",
-                      "build_script": "build",
-                      "output_directory": ".next",
-                      "package_manager": "npm",
-                      "source_type": "archive",
-                      "source_options": { "archive_path": "deploy.zip" }
-                    }')
-          UUID=$(echo "$BUILD" | jq -r '.uuid // .data.uuid')
-          if [ -z "$UUID" ] || [ "$UUID" = "null" ]; then
-            echo "::error::The build was not accepted. Hostinger replied: $BUILD"
-            exit 1
-          fi
-          echo "Build $UUID started."
+          # One build attempt: start it, then wait. Echoes completed, failed-empty (Hostinger failed
+          # without writing any log), failed (a real build failure, log printed) or timeout.
+          attempt() {
+            BUILD=$(curl -fsS -X POST "$API/api/hosting/v1/accounts/$USERNAME/websites/$DOMAIN/nodejs/builds" \
+                  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+                  -d '{
+                        "node_version": 22,
+                        "app_type": "next",
+                        "build_script": "build",
+                        "output_directory": ".next",
+                        "package_manager": "npm",
+                        "source_type": "archive",
+                        "source_options": { "archive_path": "deploy.zip" }
+                      }')
+            UUID=$(echo "$BUILD" | jq -r '.uuid // .data.uuid')
+            if [ -z "$UUID" ] || [ "$UUID" = "null" ]; then
+              echo "::error::The build was not accepted. Hostinger replied: $BUILD" >&2
+              echo failed; return
+            fi
+            echo "Build $UUID started." >&2
+            for i in $(seq 1 60); do
+              sleep 10
+              STATE=$(curl -fsS "$API/api/hosting/v1/accounts/$USERNAME/websites/$DOMAIN/nodejs/builds/$UUID" \
+                    -H "Authorization: Bearer $TOKEN" | jq -r '.state // .data.state')
+              echo "  $((i*10))s: $STATE" >&2
+              case "$STATE" in
+                completed) echo completed; return ;;
+                failed)
+                  LOGS=$(curl -fsS "$API/api/hosting/v1/accounts/$USERNAME/websites/$DOMAIN/nodejs/builds/$UUID/logs" \
+                    -H "Authorization: Bearer $TOKEN" | jq -r '.logs // .data.logs // empty')
+                  if [ -z "$LOGS" ]; then echo failed-empty; return; fi
+                  echo "::error::The build failed. The log follows." >&2
+                  echo "$LOGS" | tail -60 >&2
+                  echo failed; return ;;
+              esac
+            done
+            echo timeout
+          }
 
-          for i in $(seq 1 60); do
-            sleep 10
-            STATE=$(curl -fsS "$API/api/hosting/v1/accounts/$USERNAME/websites/$DOMAIN/nodejs/builds/$UUID" \
-                  -H "Authorization: Bearer $TOKEN" | jq -r '.state // .data.state')
-            echo "  $((i*10))s: $STATE"
-            case "$STATE" in
-              completed) echo "Build completed on $DOMAIN."; exit 0 ;;
-              failed)
-                echo "::error::The build failed. The log follows."
-                curl -fsS "$API/api/hosting/v1/accounts/$USERNAME/websites/$DOMAIN/nodejs/builds/$UUID/logs" \
-                  -H "Authorization: Bearer $TOKEN" | jq -r '.logs // .data.logs // .' | tail -60
-                exit 1 ;;
-            esac
-          done
-          echo "::error::The build was still running after ten minutes. Check it in hPanel."
-          exit 1
+          RESULT=$(attempt)
+          # Hostinger sometimes fails a build before it starts, leaving no log at all (seen on both
+          # KP sites on 11/05/2026; a rerun passed every time). Retry that case ONCE, and say so on
+          # the commit. A build that fails with a log is a real failure and is never retried.
+          if [ "$RESULT" = "failed-empty" ]; then
+            echo "::warning title=Hostinger build retried::The first build on $DOMAIN failed with no log before it started. Retrying once."
+            RESULT=$(attempt)
+          fi
+          case "$RESULT" in
+            completed) echo "Build completed on $DOMAIN." ;;
+            failed-empty) echo "::error::Hostinger failed the build twice without writing a log. This is on Hostinger's side; check the site in hPanel."; exit 1 ;;
+            timeout) echo "::error::The build was still running after ten minutes. Check it in hPanel."; exit 1 ;;
+            *) exit 1 ;;
+          esac
 
       # Done means served: the public address must answer with the release just built.
       - name: Check the site is serving this release
