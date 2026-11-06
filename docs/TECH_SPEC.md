@@ -256,8 +256,9 @@ prelaunch code is retired after launch, with Jack's ruling (no deletion without 
 - The clock pauses while the status is Waiting on You.
 - The "past target" count uses `settings.response_target_hours`, in business or calendar hours
   per Q10.
-- A daily 8:00 AM Eastern digest goes to each committee chair, listing requests with no owner or
-  past target.
+- A daily 8:00 AM Eastern digest goes to `SUPPORT_DIGEST_EMAILS` only (cto@orderofkpi.org on the
+  real sites; Jack, 11/06/2026), listing requests with no owner or past target. Committee chairs
+  do not receive it.
 - Business days are Monday to Friday in US Eastern, less the 11 US federal holidays on their
   observed dates (Saturday to the Friday before, Sunday to the Monday after), computed for any
   year (`lib/server/holidays.ts`). The response clock, the past-target count and the digest use
