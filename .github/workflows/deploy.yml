@@ -170,11 +170,11 @@ jobs:
             SERVED=$(echo "$BODY" | jq -r '.release // empty' 2>/dev/null || true)
             if [ "$SERVED" = "$STAMP" ]; then
               echo "https://$DOMAIN is serving $STAMP."
-              echo "$BODY" | jq -c '{ok, db, uploads, backup, portalReachable, portalProblem, release}' 2>/dev/null || true
+              echo "$BODY" | jq -c '{ok, missingSettings, db, uploads, backup, portalReachable, portalProblem, release}' 2>/dev/null || true
               # The release is live, so the deploy itself succeeded. But a site that is serving and
               # unhealthy must not look the same as a healthy one: say so on the commit, by name.
               if [ "$(echo "$BODY" | jq -r '.ok' 2>/dev/null)" != "true" ]; then
-                FAILING=$(echo "$BODY" | jq -r '[to_entries[] | select(.key != "ok" and .value == false) | .key] | join(", ")' 2>/dev/null)
+                FAILING=$(echo "$BODY" | jq -r '[to_entries[] | select(.key != "ok" and .value == false) | .key] + (.missingSettings // [] | map("missing setting " + .)) | join(", ")' 2>/dev/null)
                 echo "::warning title=Site is serving but unhealthy::https://$DOMAIN reports problems with: ${FAILING:-unknown}. Members may not be able to use it until this is fixed."
               fi
               exit 0

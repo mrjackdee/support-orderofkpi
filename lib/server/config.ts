@@ -169,3 +169,14 @@ export const SESSION_ABSOLUTE_MS = 12 * 60 * 60 * 1000;
 export const SESSION_IDLE_MS = 2 * 60 * 60 * 1000;
 export const PORTAL_TIMEOUT_MS = 8000;
 export const ADMIN_CONTACT = "admin@orderofkpi.org";
+
+/**
+ * Settings the real sites cannot run correctly without. Missing ones are named on the health page
+ * (never their values), because each fails quietly otherwise: no PORTAL_URL or secret means nobody
+ * can sign in; no SUPPORT_DATA_DIR means requests are stored inside the app folder and the next
+ * deploy wipes them; no SUPPORT_URL means emails link to localhost.
+ */
+export function missingRequiredSettings(): string[] {
+  const required = ["PORTAL_URL", "SUPPORT_URL", "SUPPORT_DATA_DIR", "SESSION_SECRET", "SUPPORT_SSO_CLIENT_SECRET"];
+  return required.filter((name) => !env(name));
+}

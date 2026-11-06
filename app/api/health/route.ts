@@ -5,7 +5,7 @@
 // themselves are not shown here, only on /staff/settings.
 
 import { getAlertRecipients, minutesSince, resolveAlertRecipients, type AlertRecipientsSource } from "@/lib/server/alert-recipients";
-import { alertEmails } from "@/lib/server/config";
+import { alertEmails, missingRequiredSettings } from "@/lib/server/config";
 import { releaseStamp } from "@/lib/server/release";
 import { backupHealth } from "@/lib/server/scheduler";
 import { portalStatus } from "@/lib/server/sso";
@@ -50,9 +50,10 @@ export async function GET() {
   const alertRecipientsSource: AlertRecipientsSource = alerts.source;
   const alertListRefreshedMinutesAgo = minutesSince(alerts.fetchedAt, Date.now());
   const portal = await portalReachable();
-  const ok = db && uploads && portal.ok && outboxMinutes <= 30 && backup.ok;
+  const missingSettings = missingRequiredSettings();
+  const ok = missingSettings.length === 0 && db && uploads && portal.ok && outboxMinutes <= 30 && backup.ok;
   return Response.json(
-    { ok, db, uploads, outboxOldestPendingMinutes: outboxMinutes, portalReachable: portal.ok, ...(portal.ok ? {} : { portalProblem: portal.detail }), backup: backup.ok, lastBackupHoursAgo: backup.lastBackupHoursAgo, release: releaseStamp(), alertRecipientsSource, alertListRefreshedMinutesAgo },
+    { ok, ...(missingSettings.length ? { missingSettings } : {}), db, uploads, outboxOldestPendingMinutes: outboxMinutes, portalReachable: portal.ok, ...(portal.ok ? {} : { portalProblem: portal.detail }), backup: backup.ok, lastBackupHoursAgo: backup.lastBackupHoursAgo, release: releaseStamp(), alertRecipientsSource, alertListRefreshedMinutesAgo },
     { status: ok ? 200 : 503, headers: { "cache-control": "no-store" } },
   );
 }
