@@ -30,7 +30,7 @@ Items marked **[Decision needed]** are open questions for Jack, collected in sec
 | Q10 | Business hours; Urgent within 1 business day |
 | Q11 | Card stays at the bottom, open by default, plus a Quick Link |
 | Q12 | Test copy at test-support.orderofkpi.com |
-| Q13 | Live for members 12/01/2026, after formal UAT by the D&T team on test-support |
+| Q13 | Live for members 12/08/2026, after formal UAT by the D&T team on test-support (moved from 12/01/2026 by Jack on 11/06/2026, along with every earlier date) |
 | Digest | The 8:00 AM daily summary goes to cto@orderofkpi.org only, not to committee chairs (Jack, 11/06/2026) |
 
 The readable copy of this document, including Jack's answers, is the Claude Docs version:

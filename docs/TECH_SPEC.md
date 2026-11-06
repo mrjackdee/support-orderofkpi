@@ -362,20 +362,21 @@ Planned changes:
 The portal's own rules apply to all portal work: QA, QC and regression agents before each push,
 `git sync`, and the AI Studio sync check afterwards.
 
-### Schedule to the 12/01/2026 launch (Q13)
+### Schedule to the 12/08/2026 launch (Q13, moved one week by Jack on 11/06/2026)
+
+Jack moved the test-environment date back one week on 11/06/2026 and every later date with it.
+The test site itself was already live and healthy on 11/05/2026 (release 2026-11-05 v.05).
 
 | Dates | Work | Depends on |
 | --- | --- | --- |
-| 11/05 to 11/06 | Phase 0: verify the three hosts; create test-support.orderofkpi.com and its MySQL database on Hostinger | Q12 setup ruling (who creates DNS and the site) |
-| 11/06 to 11/12 | Phases 1 and 2: foundation, deploy workflow, alerts; portal sign-in endpoints on portal `main` (test.orderofkpi.com) | - |
-| 11/12 to 11/17 | Phases 3 and 4: member flow, staff workspace, reports | - |
-| 11/17 to 11/18 | Phase 5: security, accessibility and regression checks; feature freeze 11/18 | - |
-| 11/18 to 11/25 | Formal UAT by the D&T team on test-support; fixes as found | D&T testers named and available (Thanksgiving is 11/26) |
-| 11/25 | Go or no-go with Jack | UAT sign-off |
-| 11/30 | Jack promotes the portal endpoints and the support site to `live` | Jack |
-| 12/01 | Requests switched on; portal link live; verified at both public addresses | - |
+| By 11/19 | Test environment ready: test-support.orderofkpi.com serving the full build, signing in through test.orderofkpi.com | Done early on 11/05 |
+| 11/19 to 11/24 | Hardening: security, accessibility and regression checks; email delivery confirmed; feature freeze 11/24 | Receipt email confirmed on test-support |
+| 11/25 to 12/02 | Formal UAT by the D&T team on test-support; fixes as found | D&T testers named and available (Thanksgiving is 11/26) |
+| 12/02 | Go or no-go with Jack | UAT sign-off |
+| 12/07 | Jack promotes the portal endpoints and the support site to `live` | Jack |
+| 12/08 | Requests switched on; portal link live; verified at both public addresses | - |
 
-The portal's sign-in endpoints must be live on orderofkpi.com before 12/01, so the portal promotion
+The portal's sign-in endpoints must be live on orderofkpi.com before 12/08, so the portal promotion
 is on the critical path as well as the support site.
 
 ## 10. Test plan (summary)

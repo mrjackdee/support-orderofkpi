@@ -2,9 +2,9 @@
 
 | | |
 | --- | --- |
-| Test window | 11/18/2026 to 11/25/2026 |
+| Test window | 11/25/2026 to 12/02/2026 (moved one week by Jack on 11/06/2026) |
 | Where | https://test-support.orderofkpi.com, signed in through https://test.orderofkpi.com |
-| Go or no-go | 11/25/2026, with Jack |
+| Go or no-go | 12/02/2026, with Jack |
 | Requirements | [BRD](BRD.md), BR-n numbers below |
 
 ## How to use this plan
