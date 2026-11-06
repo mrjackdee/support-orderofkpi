@@ -918,6 +918,11 @@ h3.settings-heading { margin-top: 26px; }
 .topic-code span { font-weight: 700; }
 .topic-code strong { padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
 .queue-section + .queue-section { margin-top: 15px; }
+.settings-readonly { display: grid; gap: 8px; margin-bottom: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); font-size: 14px; line-height: 1.55; }
+.settings-readonly p { margin: 0; }
+.settings-readonly .alert-list { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px 14px; font-weight: 700; overflow-wrap: anywhere; }
+.settings-readonly .muted { color: var(--muted); font-size: 13px; }
+.field-hint { color: var(--muted); font-size: 12px; font-weight: 400; }
 
 @media (max-width: 1000px) {
   .queue-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }

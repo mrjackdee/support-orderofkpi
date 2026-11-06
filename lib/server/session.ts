@@ -6,8 +6,8 @@
 // until 30 minutes after the last good answer, then fail closed.
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { alertEmails, isProductionSite, portalGraceMs, recheckMs, secureCookies, SESSION_ABSOLUTE_MS, SESSION_IDLE_MS, sessionSecret } from "./config";
-import { alertEmail } from "./email";
+import { sendAlert } from "./alert-recipients";
+import { isProductionSite, portalGraceMs, recheckMs, secureCookies, SESSION_ABSOLUTE_MS, SESSION_IDLE_MS, sessionSecret } from "./config";
 import type { Actor } from "./permissions";
 import { checkEmails, PortalUnavailableError, type Claims } from "./sso";
 import {
@@ -17,7 +17,6 @@ import {
   deleteSessionsFor,
   findSession,
   getMarker,
-  queueAlert,
   recordFailedCheck,
   recordGoodCheck,
   setMarker,
@@ -94,14 +93,11 @@ async function alertPortalOutage(detail: string) {
   const last = await getMarker("portal-outage-alert");
   if (now - last < 60 * 60 * 1000) return;
   await setMarker("portal-outage-alert", now);
-  const to = alertEmails();
-  if (to.length) {
-    await queueAlert(to, alertEmail("The member portal sign-in check is not answering", [
-      "The Support Center could not reach the member portal to confirm who may sign in.",
-      `Detail: ${detail}`,
-      "Members stay signed in for up to 30 minutes after the last good check, then they are asked to try again later.",
-    ]));
-  }
+  await sendAlert("The member portal sign-in check is not answering", [
+    "The Support Center could not reach the member portal to confirm who may sign in.",
+    `Detail: ${detail}`,
+    "Members stay signed in for up to 30 minutes after the last good check, then they are asked to try again later.",
+  ]);
 }
 
 const RETRY_AFTER_FAILURE_MS = 60 * 1000;

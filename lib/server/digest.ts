@@ -1,7 +1,8 @@
 // The daily digest (TECH_SPEC 5.4): at 8:00 AM US Eastern on business days, one email listing
 // every open request that has nobody assigned or is past the response target. By CEO ruling of
 // 11-05-2026 it goes only to the fixed digest address (SUPPORT_DIGEST_EMAILS, normally
-// cto@orderofkpi.org), never to committee chairs. Nobody gets an empty digest. The emails go
+// cto@orderofkpi.org), never to committee chairs. With SUPPORT_DIGEST_EMAILS unset it goes to the
+// resolved alert list (./alert-recipients), and cto@orderofkpi.org is the final default. Nobody gets an empty digest. The emails go
 // through the outbox like every other email.
 //
 // selectDigestFor is pure so it can be tested without a database. selectDigest (routing by chair)
@@ -110,8 +111,8 @@ export function digestLines(items: DigestItem[], now: number): DigestLine[] {
 /** Builds the day's digest emails from the store. Returns nothing to send when nothing needs attention. */
 export async function buildDigest(now = Date.now()): Promise<{ to: string; content: EmailContent }[]> {
   const { digestRequests } = await import("./store");
-  const to = digestEmails();
+  const { getAlertRecipients } = await import("./alert-recipients");
+  const to = digestEmails((await getAlertRecipients()).emails);
   const recipients = selectDigestFor(await digestRequests(now), to);
-  if (!to.length) console.error("[support] daily digest: no SUPPORT_DIGEST_EMAILS or SUPPORT_ALERT_EMAILS set; nothing sent");
   return recipients.map((recipient) => ({ to: recipient.email, content: digestEmail(recipient.name, digestLines(recipient.items, now)) }));
 }

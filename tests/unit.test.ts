@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
+import { isStaleAlertDue, resolveAlertRecipients, validatePortalSettings } from "../lib/server/alert-recipients";
 import { backupsToRemove } from "../lib/server/backup";
 import { addBusinessDays, businessDaysBetween, businessMsBetween, easternYear, isBusinessDay } from "../lib/server/business-time";
 import { csvCell } from "../lib/server/csv";
@@ -424,4 +425,68 @@ test("5 files per request in all, across the first submission and follow-ups (BR
   assert.match(filesCapMessage(5, 1) ?? "", /already has 5 files, which is the most one request can hold/);
   assert.equal(filesLeft(4), 1);
   assert.equal(filesLeft(7), 0);
+});
+
+// --- alert recipients (Jack, 11/06/2026) ----------------------------------------------------
+
+test("alert recipients: the portal list, else SUPPORT_ALERT_EMAILS, else cto@orderofkpi.org", () => {
+  const stored = { emails: ["ops@orderofkpi.org", "cto@orderofkpi.org"], fetchedAt: 1_000, portalUpdatedAt: "2026-11-06T15:00:00.000Z" };
+  assert.deepEqual(resolveAlertRecipients(stored, ["alerts@example.org"]), { emails: ["ops@orderofkpi.org", "cto@orderofkpi.org"], source: "portal", fetchedAt: 1_000, portalUpdatedAt: "2026-11-06T15:00:00.000Z" });
+  assert.deepEqual(resolveAlertRecipients(null, ["alerts@example.org"]), { emails: ["alerts@example.org"], source: "env", fetchedAt: null, portalUpdatedAt: null });
+  assert.deepEqual(resolveAlertRecipients(null, []), { emails: ["cto@orderofkpi.org"], source: "default", fetchedAt: null, portalUpdatedAt: null });
+  // A damaged stored row is treated as never fetched.
+  assert.equal(resolveAlertRecipients({ emails: [], fetchedAt: 5, portalUpdatedAt: null }, []).source, "default");
+  assert.equal(resolveAlertRecipients({ emails: ["not-an-email"], fetchedAt: 5, portalUpdatedAt: null }, ["alerts@example.org"]).source, "env");
+});
+
+test("the portal's alert list is used only when it is 1 to 10 valid addresses", () => {
+  assert.deepEqual(validatePortalSettings({ alertEmails: [" CTO@orderofkpi.org ", "ops@orderofkpi.org", "cto@orderofkpi.org"], updatedAt: "2026-11-06T15:00:00Z" }), { ok: true, emails: ["cto@orderofkpi.org", "ops@orderofkpi.org"], updatedAt: "2026-11-06T15:00:00Z" });
+  assert.deepEqual(validatePortalSettings({ alertEmails: ["cto@orderofkpi.org"], updatedAt: null }), { ok: true, emails: ["cto@orderofkpi.org"], updatedAt: null });
+  const ten = Array.from({ length: 10 }, (_, index) => `person${index}@orderofkpi.org`);
+  assert.equal(validatePortalSettings({ alertEmails: ten, updatedAt: null }).ok, true);
+  for (const bad of [
+    null,
+    "cto@orderofkpi.org",
+    [],
+    {},
+    { alertEmails: [] },
+    { alertEmails: "cto@orderofkpi.org" },
+    { alertEmails: [...ten, "eleven@orderofkpi.org"] },
+    { alertEmails: ["cto@orderofkpi.org", "not an email"] },
+    { alertEmails: ["cto@orderofkpi.org", 42] },
+    { alertEmails: [""] },
+    { alertEmails: ["cto@orderofkpi.org"], updatedAt: 12345 },
+  ]) {
+    assert.equal(validatePortalSettings(bad).ok, false, JSON.stringify(bad));
+  }
+});
+
+test("the 'alert list could not be refreshed' alert: after 24 hours without a good fetch, at most every 6 hours", () => {
+  const hour = 3_600_000;
+  const t0 = Date.UTC(2026, 10, 6, 12, 0);
+  // Recent good fetch: never.
+  assert.equal(isStaleAlertDue({ lastSuccessAt: t0, watchStart: t0 - 100 * hour, lastStaleAlertAt: null }, t0 + 23.9 * hour), false);
+  assert.equal(isStaleAlertDue({ lastSuccessAt: t0, watchStart: t0, lastStaleAlertAt: null }, t0 + 24 * hour), true);
+  // Within 6 hours of the last one: no; 6 hours on: yes.
+  assert.equal(isStaleAlertDue({ lastSuccessAt: t0, watchStart: t0, lastStaleAlertAt: t0 + 24 * hour }, t0 + 29.9 * hour), false);
+  assert.equal(isStaleAlertDue({ lastSuccessAt: t0, watchStart: t0, lastStaleAlertAt: t0 + 24 * hour }, t0 + 30 * hour), true);
+  // Never fetched: counts from the first try.
+  assert.equal(isStaleAlertDue({ lastSuccessAt: null, watchStart: t0, lastStaleAlertAt: null }, t0 + 12 * hour), false);
+  assert.equal(isStaleAlertDue({ lastSuccessAt: null, watchStart: t0, lastStaleAlertAt: null }, t0 + 24 * hour), true);
+});
+
+test("digest falls back to the resolved alert list, then cto@orderofkpi.org", () => {
+  const saved = { d: process.env.SUPPORT_DIGEST_EMAILS, a: process.env.SUPPORT_ALERT_EMAILS };
+  try {
+    delete process.env.SUPPORT_DIGEST_EMAILS;
+    process.env.SUPPORT_ALERT_EMAILS = "alerts@example.org";
+    assert.deepEqual(digestEmails(["ops@orderofkpi.org"]), ["ops@orderofkpi.org"], "the portal's alert list beats the env");
+    delete process.env.SUPPORT_ALERT_EMAILS;
+    assert.deepEqual(digestEmails(), ["cto@orderofkpi.org"]);
+    process.env.SUPPORT_DIGEST_EMAILS = "digest@example.org";
+    assert.deepEqual(digestEmails(["ops@orderofkpi.org"]), ["digest@example.org"], "SUPPORT_DIGEST_EMAILS still decides when set");
+  } finally {
+    if (saved.d === undefined) delete process.env.SUPPORT_DIGEST_EMAILS; else process.env.SUPPORT_DIGEST_EMAILS = saved.d;
+    if (saved.a === undefined) delete process.env.SUPPORT_ALERT_EMAILS; else process.env.SUPPORT_ALERT_EMAILS = saved.a;
+  }
 });

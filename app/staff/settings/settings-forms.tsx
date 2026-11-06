@@ -34,8 +34,9 @@ export function TargetsForm({ csrf, responseTargetDays, urgentTargetDays, notify
     <form className="settings-form" onSubmit={submit}>
       <label>Response target, business days<input name="target" type="number" min={1} max={10} defaultValue={responseTargetDays} required /></label>
       <label>Urgent requests, business days<input name="urgent" type="number" min={1} max={10} defaultValue={urgentTargetDays} required /></label>
-      <label className="full">Also tell these addresses about every new request
-        <textarea name="emails" rows={3} defaultValue={notifyEmails.join("\n")} placeholder="One email address per line" />
+      <label className="full">New-request notifications: also email these addresses about every new request
+        <textarea name="emails" rows={3} defaultValue={notifyEmails.join("\n")} placeholder="One email address per line" aria-describedby="new-request-hint" />
+        <span className="field-hint" id="new-request-hint">Only for new requests. Failure alerts are a different list, shown below.</span>
       </label>
       <Result error={error} saved={saved} />
       <button className="button button-primary" type="submit">Save settings</button>

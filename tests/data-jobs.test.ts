@@ -1,5 +1,6 @@
 // Runs the real data layer on a throw-away SUPPORT_DATA_DIR (invented people only): the 5-files-
-// per-request cap on the server, the nightly backup and its check, and the daily digest claim.
+// per-request cap on the server, the nightly backup and its check, the daily digest claim, and
+// the alert list fetched from a stubbed portal.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -111,4 +112,102 @@ test("the scheduler claims each day once", async () => {
   assert.equal(queued, 1, "one digest, to the D&T chair");
   assert.equal(await maybeDigest(at + 60_000), null);
   assert.equal(await maybeDigest(Date.UTC(2026, 10, 11, 13, 30)), null, "no digest on Veterans Day");
+});
+
+// --- the alert list from the portal (Jack, 11/06/2026) ----------------------------------------
+
+const { getAlertRecipients, refreshAlertRecipients } = await import("../lib/server/alert-recipients");
+const { default: Database } = await import("better-sqlite3");
+
+function alertRows(subject: string) {
+  const db = new Database(path.join(dataDir, "support.db"), { readonly: true });
+  try {
+    return db.prepare("select to_address as toAddress, created_at as createdAt from outbox where kind = 'alert' and subject like ? order by id").all(`%${subject}%`) as { toAddress: string }[];
+  } finally {
+    db.close();
+  }
+}
+
+type PortalAnswer = { status: number; body: unknown } | "unreachable";
+let portalAnswer: PortalAnswer = "unreachable";
+const realFetch = globalThis.fetch;
+const signedCalls: { url: string; body: string; signature: string }[] = [];
+
+test("alert list: SUPPORT_ALERT_EMAILS, then the default, before any fetch; the portal's list after", async () => {
+  process.env.PORTAL_URL = "http://portal.invalid";
+  process.env.SUPPORT_SSO_CLIENT_SECRET = "test-secret-for-the-settings-call";
+  globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    signedCalls.push({ url: String(url), body: String(init?.body), signature: headers["x-kp-sso-signature"] });
+    if (portalAnswer === "unreachable") throw new TypeError("fetch failed");
+    return new Response(JSON.stringify(portalAnswer.body), { status: portalAnswer.status, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+
+  assert.equal((await getAlertRecipients()).source, "env");
+  assert.deepEqual((await getAlertRecipients()).emails, ["alerts@example.org"]);
+  delete process.env.SUPPORT_ALERT_EMAILS;
+  assert.deepEqual(await getAlertRecipients(), { emails: ["cto@orderofkpi.org"], source: "default", fetchedAt: null, portalUpdatedAt: null });
+
+  const t0 = Date.UTC(2026, 10, 6, 15, 0);
+  portalAnswer = { status: 200, body: { alertEmails: ["Ops.Lead@example.org", "cto@orderofkpi.org"], updatedAt: "2026-11-06T14:59:00.000Z" } };
+  const result = await refreshAlertRecipients(t0);
+  assert.equal(result.ok, true);
+  const call = signedCalls.at(-1)!;
+  assert.equal(call.url, "http://portal.invalid/api/support-sso/settings");
+  assert.equal(call.body, "{}");
+  assert.match(call.signature, /^[0-9a-f]{64}$/);
+  assert.deepEqual(await getAlertRecipients(), { emails: ["ops.lead@example.org", "cto@orderofkpi.org"], source: "portal", fetchedAt: t0, portalUpdatedAt: "2026-11-06T14:59:00.000Z" });
+  process.env.SUPPORT_ALERT_EMAILS = "alerts@example.org";
+  assert.equal((await getAlertRecipients()).source, "portal", "the portal's list beats SUPPORT_ALERT_EMAILS once fetched");
+});
+
+test("alert list: a failed or invalid fetch keeps the last good list; alerts go to it", async () => {
+  const t0 = Date.UTC(2026, 10, 6, 15, 0);
+  for (const answer of [
+    "unreachable" as const,
+    { status: 503, body: { error: "SUPPORT_SSO_NOT_CONFIGURED" } },
+    { status: 401, body: { error: "BAD_SIGNATURE" } },
+    { status: 200, body: { alertEmails: [] } },
+    { status: 200, body: { alertEmails: ["not-an-email"], updatedAt: null } },
+    { status: 200, body: { alertEmails: Array.from({ length: 11 }, (_, index) => `p${index}@example.org`) } },
+  ]) {
+    portalAnswer = answer;
+    const result = await refreshAlertRecipients(t0 + 10 * 60_000);
+    assert.equal(result.ok, false, JSON.stringify(answer));
+    assert.equal(result.ok === false && result.staleAlertSent, false, "a failed fetch is not itself an alert");
+    const now = await getAlertRecipients();
+    assert.equal(now.source, "portal");
+    assert.deepEqual(now.emails, ["ops.lead@example.org", "cto@orderofkpi.org"]);
+    assert.equal(now.fetchedAt, t0);
+  }
+  const { sendAlert } = await import("../lib/server/alert-recipients");
+  await sendAlert("The nightly backup failed", ["Invented test failure."]);
+  assert.deepEqual(alertRows("The nightly backup failed").map((row) => row.toAddress), ["ops.lead@example.org", "cto@orderofkpi.org"]);
+  const { getAlertListStatus } = await import("../lib/server/alert-recipients");
+  const status = await getAlertListStatus();
+  assert.ok(status?.lastFailureAt && status.lastFailure, "the failure is recorded");
+});
+
+test("alert list: no good fetch for 24 hours sends one alert to the current list, at most every 6 hours", async () => {
+  const t0 = Date.UTC(2026, 10, 6, 15, 0);
+  const hour = 3_600_000;
+  portalAnswer = "unreachable";
+  const sent: boolean[] = [];
+  for (const at of [t0 + 23 * hour, t0 + 24 * hour, t0 + 25 * hour, t0 + 29.9 * hour, t0 + 30 * hour, t0 + 31 * hour]) {
+    const result = await refreshAlertRecipients(at);
+    sent.push(result.ok === false && result.staleAlertSent);
+  }
+  assert.deepEqual(sent, [false, true, false, false, true, false]);
+  const rows = alertRows("The alert list could not be refreshed");
+  assert.equal(rows.length, 4, "two alerts, each to the two addresses on the last good list");
+  assert.deepEqual([...new Set(rows.map((row) => row.toAddress))], ["ops.lead@example.org", "cto@orderofkpi.org"]);
+
+  // A good fetch starts the 24 hours again.
+  portalAnswer = { status: 200, body: { alertEmails: ["cto@orderofkpi.org"], updatedAt: null } };
+  assert.equal((await refreshAlertRecipients(t0 + 32 * hour)).ok, true);
+  assert.deepEqual((await getAlertRecipients()).emails, ["cto@orderofkpi.org"]);
+  portalAnswer = "unreachable";
+  const later = await refreshAlertRecipients(t0 + 40 * hour);
+  assert.equal(later.ok === false && later.staleAlertSent, false);
+  globalThis.fetch = realFetch;
 });

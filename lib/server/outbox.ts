@@ -1,11 +1,12 @@
 // The email outbox worker (TECH_SPEC 5.3, BR-43, BR-61). Runs inside the Node process.
 // Retries back off 1 m, 5 m, 30 m, 2 h, 6 h. When an item finally fails, or the oldest pending
-// item is more than 30 minutes old, an alert goes to SUPPORT_ALERT_EMAILS. The same tick runs the
-// timed jobs in ./scheduler (nightly backup, daily digest).
+// item is more than 30 minutes old, an alert goes to the alert list (./alert-recipients). The same
+// tick refreshes that list from the portal and runs the timed jobs in ./scheduler (nightly backup,
+// daily digest).
 
 import nodemailer, { type Transporter } from "nodemailer";
-import { alertEmails, outboxIntervalMs, SESSION_IDLE_MS, smtpConfig } from "./config";
-import { alertEmail } from "./email";
+import { maybeRefreshAlertRecipients, sendAlert } from "./alert-recipients";
+import { outboxIntervalMs, SESSION_IDLE_MS, smtpConfig } from "./config";
 import { runScheduledJobs } from "./scheduler";
 import { sweepOrphans } from "./uploads";
 import {
@@ -14,7 +15,6 @@ import {
   getMarker,
   outboxOldestPendingMinutes,
   purgeExpiredSessions,
-  queueAlert,
   setMarker,
   updateOutboxItem,
 } from "./store";
@@ -72,14 +72,11 @@ export async function processOutbox(now = Date.now()) {
         if (delay === null) {
           await updateOutboxItem(item.id, { status: "FAILED", attempts, lastError: message });
           if (item.kind !== "alert") {
-            const to = alertEmails();
-            if (to.length) {
-              await queueAlert(to, alertEmail("An email could not be delivered", [
-                `After ${attempts} tries the Support Center gave up sending "${item.subject}" to ${item.toAddress}.`,
-                `Last error: ${message}`,
-                "The request itself is saved. Please let the member know another way if this matters.",
-              ]));
-            }
+            await sendAlert("An email could not be delivered", [
+              `After ${attempts} tries the Support Center gave up sending "${item.subject}" to ${item.toAddress}.`,
+              `Last error: ${message}`,
+              "The request itself is saved. Please let the member know another way if this matters.",
+            ]);
           }
         } else {
           await updateOutboxItem(item.id, { attempts, nextAttemptAt: Date.now() + delay, lastError: message });
@@ -98,10 +95,7 @@ async function checkStalledOutbox() {
   const now = Date.now();
   if (now - (await getMarker("outbox-stalled-alert")) < 60 * 60 * 1000) return;
   await setMarker("outbox-stalled-alert", now);
-  const to = alertEmails();
-  if (to.length) {
-    await queueAlert(to, alertEmail("Support Center emails are waiting to send", [`The oldest email waiting to send is ${minutes} minutes old.`, "Check the SMTP settings on the host."]));
-  }
+  await sendAlert("Support Center emails are waiting to send", [`The oldest email waiting to send is ${minutes} minutes old.`, "Check the SMTP settings on the host."]);
 }
 
 async function dailyHousekeeping() {
@@ -119,8 +113,12 @@ export function startBackgroundWorker() {
   const tick = () => {
     processOutbox().catch((error) => console.error("[support] outbox error", error instanceof Error ? error.message : "unknown"));
     dailyHousekeeping().catch((error) => console.error("[support] housekeeping error", error instanceof Error ? error.message : "unknown"));
-    // The nightly backup and the daily digest (./scheduler).
-    runScheduledJobs().catch((error) => console.error("[support] scheduled job error", error instanceof Error ? error.message : "unknown"));
+    // Who gets alerts, from the portal (at start-up, then every 10 minutes), then the nightly backup
+    // and the daily digest (./scheduler), so a job's alert uses the freshest list.
+    (async () => {
+      await maybeRefreshAlertRecipients().catch((error) => console.error("[support] alert list refresh error", error instanceof Error ? error.message : "unknown"));
+      await runScheduledJobs();
+    })().catch((error) => console.error("[support] scheduled job error", error instanceof Error ? error.message : "unknown"));
   };
   holder.__kpSupportWorker = setInterval(tick, outboxIntervalMs());
   holder.__kpSupportWorker.unref?.();

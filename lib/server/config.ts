@@ -90,24 +90,42 @@ export function smtpConfig() {
   };
 }
 
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function emailList(name: string) {
   return env(name)
     .split(",")
     .map((item) => item.trim().toLowerCase())
-    .filter((item) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item));
+    .filter((item) => EMAIL_PATTERN.test(item));
 }
 
+/** Where failure alerts go when neither the portal nor SUPPORT_ALERT_EMAILS names anyone (Jack, 11/06/2026). */
+export const DEFAULT_ALERT_EMAIL = "cto@orderofkpi.org";
+
+/**
+ * SUPPORT_ALERT_EMAILS, which is now only the fallback: alerts go to the list administrators keep
+ * on the Member Portal Admin Dashboard (./alert-recipients). Used until that list is first fetched.
+ */
 export function alertEmails() {
   return emailList("SUPPORT_ALERT_EMAILS");
 }
 
 /**
  * Who receives the daily digest (CEO ruling 11-05-2026: one fixed address, not committee chairs).
- * SUPPORT_DIGEST_EMAILS, or SUPPORT_ALERT_EMAILS when that is unset.
+ * SUPPORT_DIGEST_EMAILS; else `alertFallback` (the resolved alert list); else SUPPORT_ALERT_EMAILS;
+ * else cto@orderofkpi.org.
  */
-export function digestEmails() {
+export function digestEmails(alertFallback: string[] = []) {
   const list = emailList("SUPPORT_DIGEST_EMAILS");
-  return list.length ? list : alertEmails();
+  if (list.length) return list;
+  if (alertFallback.length) return [...new Set(alertFallback.map((item) => item.toLowerCase()))];
+  const env = alertEmails();
+  return env.length ? env : [DEFAULT_ALERT_EMAIL];
+}
+
+/** How often the alert list is fetched again from the portal (10 minutes). Testing: SUPPORT_SETTINGS_REFRESH_SECONDS. */
+export function settingsRefreshMs() {
+  return positiveNumber("SUPPORT_SETTINGS_REFRESH_SECONDS", 600) * 1000;
 }
 
 /** How old a portal access check may get before it is repeated (TECH_SPEC 3.2: 10 minutes). */

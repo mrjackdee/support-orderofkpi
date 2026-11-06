@@ -151,6 +151,30 @@ export async function updateSettings(actor: Actor, patch: Partial<SupportSetting
   return readSettings(db);
 }
 
+/**
+ * Internal JSON values kept in the settings table under `state:<key>`, such as the alert list last
+ * fetched from the portal. Never shown on the settings form and never changed by staff.
+ */
+export async function getStateValue<T>(key: string): Promise<T | null> {
+  const row = ensureReady().select().from(settings).where(eq(settings.key, `state:${key}`)).get();
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function setStateValue(key: string, value: unknown) {
+  const now = Date.now();
+  const text = JSON.stringify(value);
+  ensureReady()
+    .insert(settings)
+    .values({ key: `state:${key}`, value: text, updatedAt: now, updatedBy: "system" })
+    .onConflictDoUpdate({ target: settings.key, set: { value: text, updatedAt: now, updatedBy: "system" } })
+    .run();
+}
+
 /** Internal key-value markers, such as when an alert was last sent. */
 export async function getMarker(key: string) {
   const row = ensureReady().select().from(settings).where(eq(settings.key, `marker:${key}`)).get();

@@ -12,10 +12,10 @@
 
 import { runBackup } from "./backup";
 import { easternDateKey, easternMinuteOfDay, isBusinessDay } from "./business-time";
-import { alertEmails, backupAtMinutes, digestAtMinutes } from "./config";
+import { sendAlert } from "./alert-recipients";
+import { backupAtMinutes, digestAtMinutes } from "./config";
 import { buildDigest } from "./digest";
-import { alertEmail } from "./email";
-import { claimMarker, getMarker, lastSuccessfulBackupAt, queueAlert, queueEmails, setMarker } from "./store";
+import { claimMarker, getMarker, lastSuccessfulBackupAt, queueEmails, setMarker } from "./store";
 
 const HOUR_MS = 60 * 60 * 1000;
 /** A backup older than this is "missed" (one nightly run plus two hours of slack). */
@@ -38,9 +38,9 @@ export function isJobDue(now: number, atMinutes: number, businessDaysOnly: boole
 
 const state = globalThis as unknown as { __kpBackupRunning?: boolean; __kpDigestRunning?: boolean };
 
+/** Alerts go to the list kept on the Member Portal Admin Dashboard (./alert-recipients). */
 async function alert(summary: string, details: string[]) {
-  const to = alertEmails();
-  if (to.length) await queueAlert(to, alertEmail(summary, details));
+  await sendAlert(summary, details);
 }
 
 export async function maybeBackup(now = Date.now()) {

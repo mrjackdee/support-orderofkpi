@@ -77,7 +77,7 @@ type PortalReply = { status: number; body: Record<string, unknown> };
  * is not configured, or answers with a server error. The request body is never logged: for the
  * password call it holds the member's password.
  */
-async function call(name: "exchange" | "password" | "check", payload: Record<string, unknown>): Promise<PortalReply> {
+async function call(name: "exchange" | "password" | "check" | "settings", payload: Record<string, unknown>): Promise<PortalReply> {
   const base = portalUrl();
   const secret = ssoSecret();
   if (!base || !secret) throw new PortalUnavailableError("PORTAL_URL or SUPPORT_SSO_CLIENT_SECRET is not set");
@@ -159,6 +159,21 @@ export async function checkEmails(emails: string[]): Promise<CheckResult> {
     results[email] = { allowed: entry.allowed === true && claims !== null, claims };
   }
   return results;
+}
+
+/**
+ * The Support Center settings administrators keep on the Member Portal Admin Dashboard (Jack,
+ * 11/06/2026): today only who receives failure alerts. POST /api/support-sso/settings with body {},
+ * signed like the other calls. Returns the raw answer for ./alert-recipients to check; throws
+ * PortalUnavailableError when the portal cannot be reached or does not answer 200.
+ */
+export async function fetchPortalSettings(): Promise<Record<string, unknown>> {
+  const reply = await call("settings", {});
+  if (reply.status !== 200) {
+    const code = typeof reply.body.error === "string" ? ` ${reply.body.error.slice(0, 60)}` : "";
+    throw new PortalUnavailableError(`settings: HTTP ${reply.status}${code}`);
+  }
+  return reply.body;
 }
 
 /** For /api/health: does the portal answer a signed call at all? */
