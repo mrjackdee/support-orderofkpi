@@ -1,0 +1,193 @@
+# Deploying the KP Support Center, from GitHub rather than from Hostinger.
+#
+# Same arrangement as the member portal (mrjackdee/OrderofKPI.com, .github/workflows/deploy.yml),
+# for the same reason: Hostinger's own auto-deploy is one connection shared by every site on the
+# account, and connecting another website can silently stop a site deploying. This file lives in
+# the repository, and when a deploy fails it fails LOUDLY: a red cross against the commit.
+#
+# WHICH BRANCH GOES WHERE. This is the mapping, and it is the only place it is written down:
+#
+#     main  ->  test-support.orderofkpi.com   (the test site, used for UAT; push here freely)
+#     live  ->  support.orderofkpi.com        (what members see; promoting is Jack's decision)
+#
+# A push to any other branch deploys nowhere.
+#
+# WHAT IT NEEDS, ONCE, under Settings -> Secrets and variables -> Actions in THIS repository:
+#   - secret   HOSTINGER_API_TOKEN  (a Hostinger API token from hPanel, the same kind the portal uses)
+#   - variable HOSTINGER_USERNAME   (the hosting account username, u536498201)
+#
+# DONE MEANS SERVED. A completed Hostinger build is not proof of anything. After the build, this
+# workflow asks the site itself for /api/health and fails unless the site is answering with the
+# release it just built. Only then is the release tagged.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main, live]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Work out which site this branch belongs to
+        id: target
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            main) echo "domain=test-support.orderofkpi.com" >> "$GITHUB_OUTPUT"; echo "label=the TEST site (UAT)" >> "$GITHUB_OUTPUT" ;;
+            live) echo "domain=support.orderofkpi.com"      >> "$GITHUB_OUTPUT"; echo "label=the LIVE site members see" >> "$GITHUB_OUTPUT" ;;
+            *)    echo "::error::${GITHUB_REF_NAME} does not deploy anywhere. Only main and live do."; exit 1 ;;
+          esac
+
+      - name: Say plainly what is about to happen
+        run: |
+          echo "Branch ${GITHUB_REF_NAME} -> ${{ steps.target.outputs.domain }} (${{ steps.target.outputs.label }})"
+          echo "Commit $(git rev-parse --short HEAD): $(git log -1 --pretty=%s)"
+
+      # The release stamp the footer shows: YYYY-MM-DD v.NN, NN counting the deployments made to
+      # THIS site on THIS date, in Atlanta time, kept as a git tag per release.
+      - name: Work out the release number
+        id: release
+        run: |
+          set -euo pipefail
+          git fetch --tags --quiet
+          SITE=${GITHUB_REF_NAME}
+          DATE=$(TZ=America/New_York date +%Y-%m-%d)
+          N=$(git tag -l "release/${SITE}/${DATE}.*" | wc -l | tr -d ' ')
+          SEQ=$(printf '%02d' $((N + 1)))
+          echo "stamp=${DATE} v.${SEQ}" >> "$GITHUB_OUTPUT"
+          echo "tag=release/${SITE}/${DATE}.${SEQ}" >> "$GITHUB_OUTPUT"
+          echo "This is ${DATE} v.${SEQ} for ${SITE}."
+
+      # Tracked files only, so a stray local file can never be deployed. Member data lives in
+      # SUPPORT_DATA_DIR on the server, outside the site folder, and is never part of a deploy.
+      - name: Package the committed files
+        env:
+          STAMP: ${{ steps.release.outputs.stamp }}
+        run: |
+          git archive --format=zip -o deploy.zip HEAD
+          printf '{"release":"%s","commit":"%s","ref":"%s","builtAt":"%s"}' \
+            "${STAMP}" "$(git rev-parse --short=7 HEAD)" "${GITHUB_REF_NAME}" \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > release.json
+          zip -q -g deploy.zip release.json
+          cat release.json; echo
+          echo "$(unzip -l deploy.zip | tail -1)"
+
+      - name: Send it to Hostinger and build
+        env:
+          TOKEN: ${{ secrets.HOSTINGER_API_TOKEN }}
+          USERNAME: ${{ vars.HOSTINGER_USERNAME }}
+          DOMAIN: ${{ steps.target.outputs.domain }}
+        run: |
+          set -euo pipefail
+          API=https://developers.hostinger.com
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::HOSTINGER_API_TOKEN is not set. Add it under Settings, Secrets and variables, Actions."
+            exit 1
+          fi
+          if [ -z "${USERNAME:-}" ]; then
+            echo "::error::HOSTINGER_USERNAME is not set. Add it as a repository VARIABLE (not a secret) under the same screen."
+            exit 1
+          fi
+
+          UP=$(curl -fsS -X POST "$API/api/hosting/v1/files/upload-urls" \
+                -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+                -d "{\"username\":\"$USERNAME\",\"domain\":\"$DOMAIN\"}")
+          URL=$(echo "$UP" | jq -r '.url // .data.url')
+          KEY=$(echo "$UP" | jq -r '.auth_key // .data.auth_key')
+          REST=$(echo "$UP" | jq -r '.rest_auth_key // .data.rest_auth_key')
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            echo "::error::Hostinger did not return an upload address for $DOMAIN. Does the site exist? It replied: $UP"
+            exit 1
+          fi
+
+          SIZE=$(stat -c%s deploy.zip)
+          curl -fsS -o /dev/null -X POST "$URL/deploy.zip?override=true" \
+            -H "X-Auth: $KEY" -H "X-Auth-Rest: $REST" -H 'Tus-Resumable: 1.0.0' \
+            -H "Upload-Length: $SIZE" -H 'Upload-Offset: 0'
+          curl -fsS -o /dev/null -X PATCH "$URL/deploy.zip?override=true" \
+            -H "X-Auth: $KEY" -H "X-Auth-Rest: $REST" -H 'Tus-Resumable: 1.0.0' \
+            -H 'Content-Type: application/offset+octet-stream' -H 'Upload-Offset: 0' \
+            --data-binary @deploy.zip
+          echo "Uploaded $SIZE bytes."
+
+          # Settings spelled out, never auto-detected: a Next.js app built by scripts/build-verified.sh
+          # into .next, on Node 22. These match the build Hostinger already ran for this repository.
+          BUILD=$(curl -fsS -X POST "$API/api/hosting/v1/accounts/$USERNAME/websites/$DOMAIN/nodejs/builds" \
+                -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+                -d '{
+                      "node_version": 22,
+                      "app_type": "next",
+                      "build_script": "build",
+                      "output_directory": ".next",
+                      "package_manager": "npm",
+                      "source_type": "archive",
+                      "source_options": { "archive_path": "deploy.zip" }
+                    }')
+          UUID=$(echo "$BUILD" | jq -r '.uuid // .data.uuid')
+          if [ -z "$UUID" ] || [ "$UUID" = "null" ]; then
+            echo "::error::The build was not accepted. Hostinger replied: $BUILD"
+            exit 1
+          fi
+          echo "Build $UUID started."
+
+          for i in $(seq 1 60); do
+            sleep 10
+            STATE=$(curl -fsS "$API/api/hosting/v1/accounts/$USERNAME/websites/$DOMAIN/nodejs/builds/$UUID" \
+                  -H "Authorization: Bearer $TOKEN" | jq -r '.state // .data.state')
+            echo "  $((i*10))s: $STATE"
+            case "$STATE" in
+              completed) echo "Build completed on $DOMAIN."; exit 0 ;;
+              failed)
+                echo "::error::The build failed. The log follows."
+                curl -fsS "$API/api/hosting/v1/accounts/$USERNAME/websites/$DOMAIN/nodejs/builds/$UUID/logs" \
+                  -H "Authorization: Bearer $TOKEN" | jq -r '.logs // .data.logs // .' | tail -60
+                exit 1 ;;
+            esac
+          done
+          echo "::error::The build was still running after ten minutes. Check it in hPanel."
+          exit 1
+
+      # Done means served: the public address must answer with the release just built.
+      - name: Check the site is serving this release
+        env:
+          DOMAIN: ${{ steps.target.outputs.domain }}
+          STAMP: ${{ steps.release.outputs.stamp }}
+        run: |
+          set -uo pipefail
+          for i in $(seq 1 30); do
+            BODY=$(curl -sS --max-time 15 "https://$DOMAIN/api/health?nocache=$(date +%s)" || true)
+            SERVED=$(echo "$BODY" | jq -r '.release // empty' 2>/dev/null || true)
+            if [ "$SERVED" = "$STAMP" ]; then
+              echo "https://$DOMAIN is serving $STAMP."
+              echo "$BODY" | jq -c '{ok, db, uploads, backup, portalReachable, release}' 2>/dev/null || true
+              exit 0
+            fi
+            echo "  $((i*10))s: serving '${SERVED:-nothing yet}', waiting for '$STAMP'"
+            sleep 10
+          done
+          echo "::error::The build finished but https://$DOMAIN is not serving $STAMP after five minutes. Last answer: $BODY"
+          exit 1
+
+      - name: Record the release
+        if: success()
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          STAMP: ${{ steps.release.outputs.stamp }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$STAMP on ${{ steps.target.outputs.domain }}"
+          git push origin "$TAG"
+          echo "Tagged $TAG."
