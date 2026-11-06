@@ -167,7 +167,10 @@ jobs:
           # KP sites on 11/05/2026; a rerun passed every time). Retry that case ONCE, and say so on
           # the commit. A build that fails with a log is a real failure and is never retried.
           if [ "$RESULT" = "failed-empty" ]; then
-            echo "::warning title=Hostinger build retried::The first build on $DOMAIN failed with no log before it started. Retrying once."
+            echo "::warning title=Hostinger build retried::The first build on $DOMAIN failed with no log before it started. Retrying once, after two minutes."
+            # An immediate retry failed the same way within seconds (11/06/2026); reruns a few
+            # minutes later have always passed, so give Hostinger time to settle first.
+            sleep 120
             RESULT=$(attempt)
           fi
           case "$RESULT" in
