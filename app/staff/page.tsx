@@ -31,7 +31,7 @@ export default async function StaffQueuePage({ searchParams }: { searchParams: P
 
   return (
     <main className="site-shell dashboard-shell">
-      <SiteHeader actor={session.actor} active="staff" />
+      <SiteHeader actor={session.actor} csrf={session.csrf} active="staff" />
       <section className="dashboard-intro">
         <div>
           <p className="eyebrow">Staff workspace</p>

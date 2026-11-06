@@ -29,7 +29,7 @@ export default async function ReportsPage() {
   const weeklyMax = Math.max(1, ...data.weekly.map((week) => week.count));
   return (
     <main className="site-shell dashboard-shell">
-      <SiteHeader actor={session.actor} active="reports" />
+      <SiteHeader actor={session.actor} csrf={session.csrf} active="reports" />
       <section className="dashboard-intro">
         <div>
           <p className="eyebrow">Reports</p>

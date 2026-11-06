@@ -45,7 +45,7 @@ export default async function RequestPage({ params }: { params: Promise<{ number
 
   return (
     <main className="site-shell">
-      <SiteHeader actor={session.actor} active={staff && !request.isOwner ? "staff" : "status"} />
+      <SiteHeader actor={session.actor} csrf={session.csrf} active={staff && !request.isOwner ? "staff" : "status"} />
       <section className="workspace status-workspace request-page" aria-labelledby="request-number-heading">
         <a className="back-to-list" href={staff && !request.isOwner ? "/staff" : "/requests"}>← {staff && !request.isOwner ? "Back to the staff queue" : "All my requests"}</a>
         <div className="status-header">

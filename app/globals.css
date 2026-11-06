@@ -951,3 +951,25 @@ h3.settings-heading { margin-top: 26px; }
 .staff-panel label, .request-editor label { letter-spacing: 0; font-size: 13px; }
 .queue-heading h2, .conversation h2, .follow-up-card h2, .staff-panel h2 { font-weight: 720; }
 @media (max-width: 760px) { .request-page { margin-top: 20px; } }
+
+/* Top-right actions: name, Home (Member Portal) and Sign out (Jack, 11/06/2026). */
+.topbar-actions { justify-self: end; display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.topbar-actions form { margin: 0; }
+.topbar-action {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px;
+  border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface);
+  color: var(--green); font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.topbar-action:hover { border-color: var(--green); background: var(--green-soft); }
+.topbar-action:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+@media (max-width: 1000px) {
+  .topbar { grid-template-columns: 1fr auto; }
+  .topbar .primary-nav { grid-column: 1 / -1; grid-row: 2; justify-self: center; margin-bottom: 12px; }
+}
+@media (max-width: 760px) {
+  .topbar { grid-template-columns: 1fr auto; }
+  .topbar .brand { grid-column: 1; grid-row: 1; }
+  .topbar-actions { grid-column: 2; grid-row: 1; gap: 8px; }
+  .topbar .primary-nav { grid-column: 1 / -1; grid-row: 2; margin-bottom: 0; }
+  .topbar-action { min-height: 40px; padding: 0 12px; }
+}

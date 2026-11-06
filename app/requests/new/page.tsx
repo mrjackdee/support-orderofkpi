@@ -15,7 +15,7 @@ export default async function NewRequestPage() {
   const days = settings.responseTargetDays;
   return (
     <main className="site-shell">
-      <SiteHeader actor={session.actor} active="new" />
+      <SiteHeader actor={session.actor} csrf={session.csrf} active="new" />
       <section className="intro">
         <div>
           <p className="eyebrow">Member support</p>

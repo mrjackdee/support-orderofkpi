@@ -21,7 +21,7 @@ export default async function MyRequestsPage({ searchParams }: { searchParams: P
   const requests = await listMyRequests(session.actor);
   return (
     <main className="site-shell">
-      <SiteHeader actor={session.actor} active="status" />
+      <SiteHeader actor={session.actor} csrf={session.csrf} active="status" />
       <section className="intro">
         <div>
           <p className="eyebrow">Check request status</p>
